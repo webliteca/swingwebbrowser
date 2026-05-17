@@ -1,0 +1,28 @@
+# Tool versions pinned via asdf or mise.
+#
+# To install all listed tools:
+#   asdf install        # if using asdf
+#   mise install        # if using mise
+#
+# This project compiles with maven.compiler.release=21, so we pin
+# Java 21 here.  Eclipse Temurin is widely available via both mise
+# and asdf for Java >= 11; any 21.x Temurin (or a compatible OpenJDK
+# build like Corretto 21 / Zulu 21) will work.
+#
+# Runtime requirements are looser: the swingwebview dependency itself
+# targets Java 8 bytecode, so the produced jar runs on JDK 8 and any
+# newer LTS.  Only the build needs Java 21.
+#
+# Native WebView runtime dependencies are NOT managed via asdf/mise
+# and must be installed with your OS package manager:
+#
+#   Linux:    libgtk-3-0, libwebkit2gtk-4.1-0 (or libwebkit2gtk-4.0-37
+#             on older distros), libxt6
+#   macOS:    no extra install; the system WKWebView is used
+#   Windows:  Microsoft Edge WebView2 Runtime (bundled with Windows 11
+#             and recent Edge; on older Windows install the Evergreen
+#             runtime from
+#             https://developer.microsoft.com/microsoft-edge/webview2/)
+#
+java temurin-21.0.5+11.0.LTS
+maven 3.9.9
