@@ -15,7 +15,6 @@ import java.util.Date;
 import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
-import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -56,14 +55,14 @@ public final class BrowserFrame extends JFrame implements BrowserTab.Listener {
 
     private final JTabbedPane tabs = new JTabbedPane();
     private final JTextField urlField = new JTextField();
-    private final JButton backBtn = new JButton("◀");      // ◀
-    private final JButton fwdBtn = new JButton("▶");       // ▶
-    private final JButton reloadBtn = new JButton("↻");   // ↻
-    private final JButton homeBtn = new JButton("⌂");      // ⌂
+    private final JButton backBtn = new JButton("◀");
+    private final JButton fwdBtn = new JButton("▶");
+    private final JButton reloadBtn = new JButton("↻");
+    private final JButton homeBtn = new JButton("⌂");
     private final JButton newTabBtn = new JButton("+");
     private final JToggleButton consoleBtn = new JToggleButton("Console");
-    private final JButton bookmarkAddBtn = new JButton("☆"); // ☆
-    private final JComboBox<BookmarkStore.Bookmark> bookmarkPicker;
+    private final JButton bookmarkAddBtn = new JButton("☆");
+    private final JMenu bookmarksMenu = new JMenu("Bookmarks");
 
     private final DevConsolePanel devConsole = new DevConsolePanel();
     private final JSplitPane split;
@@ -74,12 +73,13 @@ public final class BrowserFrame extends JFrame implements BrowserTab.Listener {
         setSize(1100, 800);
         setLocationRelativeTo(null);
 
-        bookmarkPicker = new JComboBox<>();
-        bookmarkPicker.setMaximumRowCount(20);
-        rebuildBookmarkPicker();
-
         // ---- Toolbar layout ----
         JPanel toolbar = buildToolbar();
+
+        devConsole.setOnClose(() -> {
+            consoleBtn.setSelected(false);
+            setConsoleVisible(false);
+        });
 
         // ---- Tab strip ----
         tabs.addChangeListener(new ChangeListener() {
@@ -124,7 +124,6 @@ public final class BrowserFrame extends JFrame implements BrowserTab.Listener {
         newTabBtn.setToolTipText("New tab (Ctrl+T)");
         consoleBtn.setToolTipText("Toggle developer console (Ctrl+Shift+J)");
         bookmarkAddBtn.setToolTipText("Bookmark this page");
-        bookmarkPicker.setToolTipText("Pick a bookmark to navigate to");
 
         backBtn.addActionListener(e -> { BrowserTab t = activeTab(); if (t != null) t.back(); });
         fwdBtn.addActionListener(e -> { BrowserTab t = activeTab(); if (t != null) t.forward(); });
@@ -146,15 +145,6 @@ public final class BrowserFrame extends JFrame implements BrowserTab.Listener {
             @Override public void changedUpdate(DocumentEvent e) { refreshBookmarkStar(); }
         });
 
-        bookmarkPicker.addActionListener(e -> {
-            Object sel = bookmarkPicker.getSelectedItem();
-            if (sel instanceof BookmarkStore.Bookmark) {
-                BookmarkStore.Bookmark b = (BookmarkStore.Bookmark) sel;
-                BrowserTab t = activeTab();
-                if (t != null) t.load(b.url);
-            }
-        });
-
         JPanel nav = new JPanel(new FlowLayout(FlowLayout.LEFT, 2, 2));
         nav.add(backBtn);
         nav.add(fwdBtn);
@@ -163,7 +153,6 @@ public final class BrowserFrame extends JFrame implements BrowserTab.Listener {
 
         JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 2, 2));
         right.add(bookmarkAddBtn);
-        right.add(bookmarkPicker);
         right.add(consoleBtn);
         right.add(newTabBtn);
 
@@ -210,9 +199,7 @@ public final class BrowserFrame extends JFrame implements BrowserTab.Listener {
         }));
         bar.add(history);
 
-        JMenu bookmarksMenu = new JMenu("Bookmarks");
-        bookmarksMenu.add(menuItem("Bookmark This Page", KeyEvent.VK_D, this::toggleBookmarkForActive));
-        bookmarksMenu.add(menuItem("Manage Bookmarks…", 0, this::showBookmarkManager));
+        rebuildBookmarksMenu();
         bar.add(bookmarksMenu);
 
         JMenu help = new JMenu("Help");
@@ -370,16 +357,26 @@ public final class BrowserFrame extends JFrame implements BrowserTab.Listener {
     // Bookmarks
     // ------------------------------------------------------------------
 
-    private void rebuildBookmarkPicker() {
-        bookmarkPicker.removeAllItems();
-        // Sentinel "header" item kept selected so the picker reads as a
-        // label.  Selecting any real entry then re-selects the header so
-        // the user can pick the same one twice in a row.
-        bookmarkPicker.addItem(new BookmarkStore.Bookmark("Bookmarks", ""));
-        for (BookmarkStore.Bookmark b : bookmarks.bookmarks()) {
-            bookmarkPicker.addItem(b);
+    /** Rebuilds the Bookmarks menu in place: two fixed actions
+     *  ("Bookmark This Page", "Manage Bookmarks…") followed by one
+     *  menu item per saved bookmark.  Called after every bookmark add
+     *  / remove so the menu reflects the current store. */
+    private void rebuildBookmarksMenu() {
+        bookmarksMenu.removeAll();
+        bookmarksMenu.add(menuItem("Bookmark This Page", KeyEvent.VK_D, this::toggleBookmarkForActive));
+        bookmarksMenu.add(menuItem("Manage Bookmarks…", 0, this::showBookmarkManager));
+        if (!bookmarks.bookmarks().isEmpty()) {
+            bookmarksMenu.addSeparator();
+            for (BookmarkStore.Bookmark b : bookmarks.bookmarks()) {
+                JMenuItem mi = new JMenuItem(b.title);
+                mi.setToolTipText(b.url);
+                mi.addActionListener(e -> {
+                    BrowserTab t = activeTab();
+                    if (t != null) t.load(b.url);
+                });
+                bookmarksMenu.add(mi);
+            }
         }
-        bookmarkPicker.setSelectedIndex(0);
     }
 
     private void toggleBookmarkForActive() {
@@ -392,7 +389,7 @@ public final class BrowserFrame extends JFrame implements BrowserTab.Listener {
         } else {
             bookmarks.add(t.currentTitle(), url);
         }
-        rebuildBookmarkPicker();
+        rebuildBookmarksMenu();
         refreshBookmarkStar();
     }
 
@@ -464,7 +461,7 @@ public final class BrowserFrame extends JFrame implements BrowserTab.Listener {
             BookmarkStore.Bookmark sel = list.getSelectedValue();
             if (sel != null) {
                 bookmarks.remove(sel.url);
-                rebuildBookmarkPicker();
+                rebuildBookmarksMenu();
                 refreshBookmarkStar();
                 list.setListData(bookmarks.bookmarks()
                     .toArray(new BookmarkStore.Bookmark[0]));

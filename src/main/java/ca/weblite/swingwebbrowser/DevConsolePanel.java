@@ -12,14 +12,13 @@ import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
-import javax.swing.JTextArea;
 import javax.swing.JTextField;
+import javax.swing.JTextPane;
 import javax.swing.SwingUtilities;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
 import javax.swing.text.StyledDocument;
-import javax.swing.JTextPane;
 
 /**
  * A simple developer console panel.  Renders console output from the
@@ -36,13 +35,14 @@ public final class DevConsolePanel extends JPanel {
     private final JTextPane output;
     private final StyledDocument doc;
     private final JTextField evalField;
-    private final JLabel statusLabel;
+    private final JLabel titleLabel;
 
     private BrowserTab activeTab;
+    private Runnable onClose;
 
     public DevConsolePanel() {
         super(new BorderLayout(0, 0));
-        setBorder(BorderFactory.createTitledBorder("Developer console"));
+        setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
 
         output = new JTextPane();
         output.setEditable(false);
@@ -54,8 +54,7 @@ public final class DevConsolePanel extends JPanel {
 
         evalField = new JTextField();
         evalField.setFont(MONO);
-        evalField.setToolTipText("Evaluate JS on the current page (Enter to run).  " +
-            "Wrap the expression with window.swingPrint(...) to print the result here.");
+        evalField.setToolTipText("Evaluate JS on the current page (Enter to run).");
         evalField.addKeyListener(new KeyAdapter() {
             @Override public void keyPressed(KeyEvent e) {
                 if (e.getKeyCode() == KeyEvent.VK_ENTER) {
@@ -78,10 +77,25 @@ public final class DevConsolePanel extends JPanel {
             if (activeTab != null) activeTab.openDevTools();
         });
 
-        statusLabel = new JLabel(" ");
-        statusLabel.setBorder(BorderFactory.createEmptyBorder(0, 6, 0, 6));
+        // ---- Header (title + close button) ----
+        titleLabel = new JLabel("Developer console");
+        titleLabel.setBorder(BorderFactory.createEmptyBorder(2, 8, 2, 8));
+        JButton closeBtn = new JButton("×");
+        closeBtn.setToolTipText("Close console (Ctrl+Shift+J)");
+        closeBtn.setFocusable(false);
+        closeBtn.setBorder(BorderFactory.createEmptyBorder(2, 8, 2, 8));
+        closeBtn.putClientProperty("JButton.buttonType", "borderless");
+        closeBtn.addActionListener(e -> {
+            if (onClose != null) onClose.run();
+        });
 
-        JPanel bottom = new JPanel(new BorderLayout(4, 4));
+        JPanel header = new JPanel(new BorderLayout());
+        header.add(titleLabel, BorderLayout.WEST);
+        header.add(closeBtn, BorderLayout.EAST);
+        header.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0,
+            UIColor("Component.borderColor", new Color(0xcc, 0xcc, 0xcc))));
+
+        // ---- Bottom controls ----
         JPanel evalRow = new JPanel(new BorderLayout(4, 0));
         evalRow.add(new JLabel(" > "), BorderLayout.WEST);
         evalRow.add(evalField, BorderLayout.CENTER);
@@ -89,12 +103,21 @@ public final class DevConsolePanel extends JPanel {
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
         buttons.add(inspectorBtn);
         buttons.add(clearBtn);
+
+        JPanel bottom = new JPanel(new BorderLayout(4, 4));
         bottom.add(evalRow, BorderLayout.CENTER);
         bottom.add(buttons, BorderLayout.EAST);
-        bottom.add(statusLabel, BorderLayout.SOUTH);
 
+        add(header, BorderLayout.NORTH);
         add(new JScrollPane(output), BorderLayout.CENTER);
         add(bottom, BorderLayout.SOUTH);
+    }
+
+    /** BrowserFrame supplies a callback so the close-button on this
+     *  panel can ask the parent to hide it (which is also what the
+     *  toolbar toggle / Ctrl+Shift+J accelerator do). */
+    public void setOnClose(Runnable onClose) {
+        this.onClose = onClose;
     }
 
     /** Repoint the panel at a different tab; replays its buffered console. */
@@ -103,9 +126,9 @@ public final class DevConsolePanel extends JPanel {
         output.setText("");
         if (tab != null) {
             for (ConsoleMessage m : tab.consoleBuffer()) appendLine(m);
-            statusLabel.setText("Showing console for: " + tab.currentTitle());
+            titleLabel.setText("Developer console — " + tab.currentTitle());
         } else {
-            statusLabel.setText(" ");
+            titleLabel.setText("Developer console");
         }
     }
 
@@ -170,5 +193,10 @@ public final class DevConsolePanel extends JPanel {
             case LOG:
             default:    return new Color(0xd4, 0xd4, 0xd4);
         }
+    }
+
+    private static Color UIColor(String key, Color fallback) {
+        Color c = javax.swing.UIManager.getColor(key);
+        return c == null ? fallback : c;
     }
 }

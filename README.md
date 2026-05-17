@@ -24,8 +24,9 @@ APIs being demonstrated stand out:
   own `WebViewComponent` and its own console buffer.  The window
   title and tab strip both follow the active page's `<title>`.
 * **Bookmarks** -- starable on the toolbar, persisted to
-  `~/.swingwebbrowser/bookmarks.tsv`.  Quick-pick dropdown in the
-  toolbar; full management dialog via *Bookmarks → Manage Bookmarks…*.
+  `~/.swingwebbrowser/bookmarks.tsv`.  Saved bookmarks appear as
+  menu items under *Bookmarks*; full management dialog via
+  *Bookmarks → Manage Bookmarks…*.
 * **History** -- every navigation is appended (with timestamp) to
   `~/.swingwebbrowser/history.tsv`.  *History → Show History…* opens
   a sortable table you can double-click to reopen any URL.
@@ -110,7 +111,7 @@ A short tour of the source files (under
 
 | File | Responsibility |
 |---|---|
-| `SwingWebBrowser.java` | `main()` -- bootstraps Swing, opens a `BrowserFrame`. |
+| `SwingWebBrowser.java` | `main()` -- installs [FlatLaf](https://www.formdev.com/flatlaf/) and opens a `BrowserFrame`. |
 | `BrowserFrame.java` | The JFrame -- toolbar, tab strip, menu bar, and the collapsible dev console. |
 | `BrowserTab.java` | One `WebViewComponent` plus its back/forward stacks and console buffer.  Injects a JS shim into every loaded page so `pushState` / `popstate` / `hashchange` navigations and `<title>` changes are observable from Java. |
 | `DevConsolePanel.java` | Captures every `console.*` call from the active tab, renders them with per-level colours, runs JS from the eval prompt, opens the native DevTools window. |
