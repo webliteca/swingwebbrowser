@@ -1,8 +1,8 @@
 name: jDeploy CI with Maven
 on:
   push:
-    branches: [ main, master ]
-    tags: [ '*' ]
+    branches: [ '*-snapshot' ]
+    tags: [ 'v*' ]
 
 concurrency:
   group: jdeploy-${{ github.workflow }}
