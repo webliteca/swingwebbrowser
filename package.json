@@ -1,0 +1,34 @@
+{
+    "license": "ISC",
+    "bin": {"swing-web-browser": "jdeploy-bundle/jdeploy.js"},
+    "name": "swing-web-browser",
+    "description": "A demo web browser built on top of the swingwebview component.",
+    "files": ["jdeploy-bundle"],
+    "preferGlobal": true,
+    "version": "1.0.0",
+    "jdeploy": {
+        "fallbackToUniversal": false,
+        "javaVersion": "21",
+        "documentTypes": [
+            {
+                "extension": "html",
+                "mimetype": "text/html"
+            },
+            {
+                "extension": "svg",
+                "mimetype": "image/svg+xml"
+            }
+        ],
+        "jar": "target/swingwebbrowser-1.0-SNAPSHOT.jar",
+        "title": "Swing Web Browser",
+        "platformBundlesEnabled": false,
+        "downloadPage": {"platforms": ["all"]}
+    },
+    "dependencies": {
+        "command-exists-promise": "^2.0.2",
+        "node-fetch": "2.6.7",
+        "tar": "^4.4.8",
+        "yauzl": "^2.10.0",
+        "shelljs": "^0.8.4"
+    }
+}
