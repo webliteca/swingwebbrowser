@@ -86,10 +86,20 @@ lightweight (Linux) by default.  To force a mode:
 ```bash
 ./run-linux.sh --heavyweight     # GTK reparenting; native input
 ./run-linux.sh --lightweight     # offscreen + Swing-composited (default)
+
+./run-mac.sh   --heavyweight     # WKWebView embedded as NSView (default)
+./run-mac.sh   --lightweight     # WKWebView snapshotted into a BufferedImage
 ```
 
 Or set the system property directly:
 `-Dca.weblite.webview.mode=heavyweight|lightweight`.
+
+The lightweight path is interesting on macOS as a side-by-side
+comparison: heavyweight gives the full native WKWebView (proper
+hardware-accelerated scrolling, real text input, native context menus)
+while lightweight composites cleanly with Swing widgets, popups and
+overlays at the cost of a per-frame snapshot/blit and synthesized
+input.
 
 ## Keyboard shortcuts
 
