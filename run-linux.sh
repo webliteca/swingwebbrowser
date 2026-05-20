@@ -9,7 +9,7 @@
 # On Debian / Ubuntu:
 #   sudo apt install libgtk-3-0 libwebkit2gtk-4.1-0 libxt6
 #
-# The native libs ship inside the swingwebview-1.0.3.jar -- no separate
+# The native libs ship inside the swingwebview-1.0.5.jar -- no separate
 # install of the swingwebview library is needed.
 
 set -euo pipefail

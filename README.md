@@ -51,7 +51,7 @@ APIs being demonstrated stand out:
     <https://developer.microsoft.com/microsoft-edge/webview2/>.
 
 The native libraries are bundled inside the
-[`ca.weblite:webview:1.0.3`](https://repo1.maven.org/maven2/ca/weblite/webview/1.0.3/)
+[`ca.weblite:webview:1.0.5`](https://repo1.maven.org/maven2/ca/weblite/webview/1.0.5/)
 artifact on Maven Central -- no extra install step for the library
 itself.
 
