@@ -6,7 +6,7 @@
 #   * JDK 21 (build) / 8+ (runtime)
 #
 # The native libs (libwebview.dylib, both Intel and Apple Silicon) ship
-# inside swingwebview-1.0.3.jar -- no separate install needed.
+# inside swingwebview-1.0.5.jar -- no separate install needed.
 
 set -euo pipefail
 cd "$(dirname "$0")"
