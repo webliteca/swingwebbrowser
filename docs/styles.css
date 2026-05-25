@@ -633,14 +633,9 @@ main { padding: 24px 0 80px; }
 }
 
 .platform-card p {
-  margin: 0 0 8px;
+  margin: 0;
   color: #5b6577;
   font-size: 0.92rem;
-}
-
-.platform-card .download-link {
-  font-family: "JetBrains Mono", monospace;
-  font-size: 0.82rem;
 }
 
 /* -------- Built with ------------------------------------------------- */
