@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SwingWebBrowser &middot; A cross-platform web browser in Java Swing</title>
+<meta name="description" content="A cross-platform multi-tab web browser written entirely in Java Swing — built as a showcase for the SwingWebView component and deployed with jDeploy." />
+<link rel="icon" type="image/png" href="icon.png" />
+<link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/atom-one-dark.min.css" />
+<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/languages/java.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/languages/bash.min.js"></script>
+<script defer src="app.js"></script>
+</head>
+<body>
+
+<header class="topnav">
+  <div class="container nav-inner">
+    <a class="brand" href="#top">
+      <span class="brand-mark">&lt;/&gt;</span>
+      <span class="brand-text">Swing<strong>WebBrowser</strong></span>
+    </a>
+    <nav>
+      <a href="#features">Features</a>
+      <a href="#built-with">Built with</a>
+      <a href="#platforms">Platforms</a>
+      <a href="#shortcuts">Shortcuts</a>
+      <a href="#source">Source</a>
+      <a class="nav-cta" href="https://www.jdeploy.com/gh/webliteca/swingwebbrowser" target="_blank" rel="noopener">Download &#x2197;</a>
+    </nav>
+  </div>
+</header>
+
+<section id="top" class="hero">
+  <div class="container hero-inner">
+    <div class="hero-text">
+      <span class="eyebrow">ca.weblite:swingwebbrowser &middot; v1.0 &middot; MIT</span>
+      <h1>A cross-platform web browser, written in <em>Java&nbsp;Swing</em>.</h1>
+      <p class="lede">
+        A small, multi-tab demo browser &mdash; tabs, bookmarks, history,
+        and a live JS console &mdash; built as a showcase for the
+        <a href="https://github.com/webliteca/swingwebview" target="_blank" rel="noopener">SwingWebView</a>
+        component and packaged for every desktop with
+        <a href="https://www.jdeploy.com" target="_blank" rel="noopener">jDeploy</a>.
+      </p>
+      <div class="hero-ctas">
+        <a class="btn btn-primary" href="https://www.jdeploy.com/gh/webliteca/swingwebbrowser" target="_blank" rel="noopener">Download for macOS, Linux &amp; Windows</a>
+        <a class="btn btn-ghost" href="https://github.com/webliteca/swingwebbrowser" target="_blank" rel="noopener">View source on GitHub</a>
+      </div>
+      <ul class="hero-badges">
+        <li><span class="dot mac"></span>macOS &middot; WKWebView</li>
+        <li><span class="dot linux"></span>Linux &middot; WebKitGTK</li>
+        <li><span class="dot win"></span>Windows &middot; WebView2</li>
+      </ul>
+    </div>
+
+    <div class="hero-mock" aria-hidden="true">
+      <div class="mock-chrome">
+        <div class="mock-traffic">
+          <span class="r"></span><span class="y"></span><span class="g"></span>
+        </div>
+        <div class="mock-tabs">
+          <div class="mock-tab active">openjdk.org</div>
+          <div class="mock-tab">duckduckgo.com</div>
+          <div class="mock-tab">webliteca.github.io</div>
+          <div class="mock-tab new">+</div>
+        </div>
+        <div class="mock-bar">
+          <div class="nav-btns">
+            <span>&larr;</span><span>&rarr;</span><span>&#x21bb;</span>
+          </div>
+          <div class="mock-url">https://openjdk.org/projects/jdk/21/</div>
+          <div class="mock-star">&#9733;</div>
+        </div>
+      </div>
+      <div class="mock-body">
+        <h4>JDK 21 &mdash; the Reference Implementation</h4>
+        <div class="line w90"></div>
+        <div class="line w70"></div>
+        <div class="line w55"></div>
+        <div class="line w90"></div>
+        <div class="line w70"></div>
+      </div>
+      <div class="mock-console">
+        <span class="log-line">&gt; window.__swb_nav('pushState', '/projects/jdk/21/')</span>
+        <span class="log-line info">[info] tab #1 navigated &mdash; back stack: 3</span>
+        <span class="log-line">&gt; document.title</span>
+        <span class="log-line">"JDK 21"</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<main class="container">
+
+<section id="download" class="snippet-block">
+  <header class="snippet-header">
+    <span class="step-pill">Install in one click</span>
+    <h2>Native installers for every desktop</h2>
+    <p>
+      The browser is packaged with <strong>jDeploy</strong> &mdash; a native
+      installer for macOS, Linux, and Windows that bundles the JVM and
+      auto-updates on launch.  No Java install required.
+    </p>
+  </header>
+  <div style="text-align:center; margin-top: 8px;">
+    <a class="btn btn-primary" href="https://www.jdeploy.com/gh/webliteca/swingwebbrowser" target="_blank" rel="noopener">
+      Get SwingWebBrowser &rarr;
+    </a>
+  </div>
+  <aside class="callout callout-info">
+    <strong>Windows note.</strong>  Requires the system-wide Microsoft Edge
+    WebView2 Runtime, which ships with current Windows&nbsp;11 / Edge.  On
+    older Windows, install the Evergreen Runtime from
+    <a href="https://developer.microsoft.com/microsoft-edge/webview2/" target="_blank" rel="noopener">developer.microsoft.com/microsoft-edge/webview2</a>.
+  </aside>
+</section>
+
+<section id="features" class="block">
+  <h2>Everything a basic browser needs</h2>
+  <p class="muted">
+    Deliberately written in as little Swing code as possible so the
+    <code>WebViewComponent</code> APIs being demonstrated stand out.
+  </p>
+
+  <div class="feature-grid">
+
+    <article class="feature-card">
+      <div class="feature-icon">&#9783;</div>
+      <h3>Tabs</h3>
+      <p>New tab, middle-click or ✕ to close.  Each tab owns its own
+         <code>WebViewComponent</code> and console buffer.  Window
+         title and tab strip follow the active page's <code>&lt;title&gt;</code>.</p>
+    </article>
+
+    <article class="feature-card">
+      <div class="feature-icon">&#9665;&#9655;</div>
+      <h3>Back / forward / reload</h3>
+      <p>Per-tab navigation history driven by a JS shim that hooks
+         <code>pushState</code>, <code>replaceState</code> and
+         <code>popstate</code> &mdash; SPA-aware, not just URL-bar input.</p>
+    </article>
+
+    <article class="feature-card">
+      <div class="feature-icon">&#128269;</div>
+      <h3>Smart address bar</h3>
+      <p>Type a URL or a search query.  Bare hostnames are auto-<code>https://</code>'d;
+         anything that doesn't look like a URL is forwarded to DuckDuckGo.</p>
+    </article>
+
+    <article class="feature-card">
+      <div class="feature-icon">&#9733;</div>
+      <h3>Bookmarks</h3>
+      <p>Starrable from the toolbar, persisted to
+         <code>~/.swingwebbrowser/bookmarks.tsv</code>.  Saved bookmarks
+         appear under the <em>Bookmarks</em> menu; full management dialog
+         included.</p>
+    </article>
+
+    <article class="feature-card">
+      <div class="feature-icon">&#8986;</div>
+      <h3>History</h3>
+      <p>Every navigation is appended (with timestamp) to a TSV log.
+         <em>History &rarr; Show History&hellip;</em> opens a sortable
+         table &mdash; double-click any row to reopen.</p>
+    </article>
+
+    <article class="feature-card">
+      <div class="feature-icon">&gt;_</div>
+      <h3>Developer console</h3>
+      <p>Collapsible panel captures every <code>console.*</code> call
+         (colorised by level), with a one-line JS eval prompt and
+         one-click access to native DevTools (WebView2 / WebKit inspector).</p>
+    </article>
+
+  </div>
+</section>
+
+<section id="built-with" class="block alt-bg">
+  <h2>Built with two libraries</h2>
+  <p class="muted">
+    The whole browser is ~1500 lines of Swing.  All the heavy lifting &mdash;
+    web rendering and cross-platform packaging &mdash; is done by two small,
+    focused libraries.
+  </p>
+
+  <div class="built-with">
+
+    <a class="built-card" href="https://github.com/webliteca/swingwebview" target="_blank" rel="noopener">
+      <span class="tag">ca.weblite:webview</span>
+      <h3>SwingWebView</h3>
+      <p>A <code>JComponent</code> that embeds a native WebView &mdash;
+         WebKit on macOS and Linux, Chromium-based WebView2 on Windows.
+         Native libraries bundled in the jar, one Maven dependency, zero
+         install steps.  Drives every tab in this browser.</p>
+      <span class="read-more">webliteca.github.io/swingwebview &rarr;</span>
+    </a>
+
+    <a class="built-card" href="https://www.jdeploy.com" target="_blank" rel="noopener">
+      <span class="tag">npm:jdeploy</span>
+      <h3>jDeploy</h3>
+      <p>Packages a Java app into native installers for macOS, Linux, and
+         Windows &mdash; bundling the JVM, generating auto-updaters, and
+         publishing through GitHub Releases.  Turns
+         <code>mvn package</code> into a one-click app for users who
+         don't have Java installed.</p>
+      <span class="read-more">www.jdeploy.com &rarr;</span>
+    </a>
+
+  </div>
+</section>
+
+<section id="webview-demo" class="snippet-block">
+  <header class="snippet-header">
+    <span class="step-pill">Behind the scenes</span>
+    <h2>Every tab is a SwingWebView</h2>
+    <p>The browser is mostly glue around one method call &mdash;
+       <code>WebViewComponent.create()</code> returns the right native
+       WebView for the current platform.</p>
+  </header>
+  <div class="code-card">
+    <div class="code-card-bar">
+      <span class="code-card-file">BrowserTab.java</span>
+      <button class="copy-btn" data-copy="tab-snippet">Copy</button>
+    </div>
+<pre id="tab-snippet"><code class="language-java">// Each tab owns its own native WebView.
+WebViewComponent wv = WebViewComponent.create();
+wv.setDebug(true);
+
+// Inject a JS shim at document-start so SPA nav + title changes
+// surface as Java events on the EDT.
+wv.addOnBeforeLoad(NAV_SHIM_JS);
+wv.addJavascriptCallback("__swb_nav", arg -&gt; handleNavEvent(arg));
+
+// Console panel subscribes to every console.* call from the page.
+wv.addConsoleListener((level, message) -&gt; devConsole.append(level, message));
+
+// One-click access to the platform's native inspector
+// (WebView2 DevTools on Windows, WebKit Inspector on macOS / Linux).
+inspectorButton.addActionListener(e -&gt; wv.openDevTools());
+
+// Address bar &mdash; navigation, back / forward / bookmark / history
+// replay all flow through this single method.
+wv.setUrl("https://duckduckgo.com");</code></pre>
+  </div>
+  <p class="muted small" style="text-align:center; margin-top: 18px;">
+    See <a href="https://github.com/webliteca/swingwebbrowser/blob/main/src/main/java/ca/weblite/swingwebbrowser/BrowserTab.java" target="_blank" rel="noopener"><code>BrowserTab.java</code></a>
+    for the full source &mdash; under 300 lines.
+  </p>
+</section>
+
+<section id="platforms" class="block alt-bg">
+  <h2>Runs natively on every desktop</h2>
+  <p class="muted">
+    One codebase, three native WebViews.  Download the right installer
+    for your platform &mdash; the JVM is bundled.
+  </p>
+
+  <div class="platform-grid">
+
+    <article class="platform-card">
+      <header>
+        <span class="dot mac large"></span>
+        <h3>macOS</h3>
+        <span class="subtle">Cocoa &middot; WKWebView</span>
+      </header>
+      <p>Hardware-accelerated WKWebView with the Swing toolbar and tab
+         strip layered around it.  Works on macOS 10.13+.</p>
+    </article>
+
+    <article class="platform-card">
+      <header>
+        <span class="dot linux large"></span>
+        <h3>Linux</h3>
+        <span class="subtle">WebKitGTK</span>
+      </header>
+      <p>Rendering, mouse, and keyboard via WebKitGTK.  Requires
+         <code>libwebkit2gtk-4.1</code> (or <code>4.0</code> on older
+         distros) and <code>libgtk-3-0</code>.</p>
+    </article>
+
+    <article class="platform-card">
+      <header>
+        <span class="dot win large"></span>
+        <h3>Windows</h3>
+        <span class="subtle">WebView2</span>
+      </header>
+      <p>Full native embedding on Windows&nbsp;11 and recent Windows&nbsp;10
+         via the Microsoft Edge WebView2 Runtime.</p>
+    </article>
+
+  </div>
+
+  <div style="text-align:center; margin-top: 32px;">
+    <a class="btn btn-primary" href="https://www.jdeploy.com/gh/webliteca/swingwebbrowser" target="_blank" rel="noopener">
+      Download for your platform &rarr;
+    </a>
+    <p class="muted small" style="margin-top: 12px;">
+      The download page auto-detects your OS and serves the right installer.
+    </p>
+  </div>
+</section>
+
+<section id="shortcuts" class="block">
+  <h2>Keyboard shortcuts</h2>
+  <p class="muted">
+    Standard browser shortcuts, with platform-correct modifiers.
+  </p>
+
+  <div class="kbd-table-wrap">
+    <table class="kbd-table">
+      <thead>
+        <tr><th>Action</th><th>macOS</th><th>Linux / Windows</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Focus URL bar</td><td><span class="kbd">&#8984; L</span></td><td><span class="kbd">Ctrl L</span></td></tr>
+        <tr><td>Back / Forward</td><td><span class="kbd">Alt &larr;</span> / <span class="kbd">Alt &rarr;</span></td><td><span class="kbd">Alt &larr;</span> / <span class="kbd">Alt &rarr;</span></td></tr>
+        <tr><td>Reload</td><td><span class="kbd">&#8984; R</span></td><td><span class="kbd">Ctrl R</span></td></tr>
+        <tr><td>New Tab</td><td><span class="kbd">&#8984; T</span></td><td><span class="kbd">Ctrl T</span></td></tr>
+        <tr><td>Close Tab</td><td><span class="kbd">&#8984; W</span></td><td><span class="kbd">Ctrl W</span></td></tr>
+        <tr><td>Bookmark this Page</td><td><span class="kbd">&#8984; D</span></td><td><span class="kbd">Ctrl D</span></td></tr>
+        <tr><td>Toggle Dev Console</td><td><span class="kbd">&#8984; &#8679; J</span></td><td><span class="kbd">Ctrl Shift J</span></td></tr>
+        <tr><td>Quit</td><td><span class="kbd">&#8984; Q</span></td><td><span class="kbd">Ctrl Q</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="source" class="block alt-bg">
+  <h2>Build it yourself</h2>
+  <p class="muted">
+    Clone, <code>mvn package</code>, run.  Requires JDK 21 to build;
+    the resulting jar runs on JDK 8+.
+  </p>
+
+  <div class="code-card">
+    <div class="code-card-bar">
+      <span class="code-card-file">shell</span>
+      <button class="copy-btn" data-copy="build">Copy</button>
+    </div>
+<pre id="build"><code class="language-bash">git clone https://github.com/webliteca/swingwebbrowser
+cd swingwebbrowser
+
+# Linux / macOS
+./run-linux.sh        # or ./run-mac.sh
+
+# Windows
+run-windows.bat</code></pre>
+  </div>
+
+  <p class="muted small" style="text-align:center; margin-top: 18px;">
+    The launcher scripts call <code>mvn package</code> the first time, then
+    <code>java</code> with the built jar plus its dependencies on the
+    classpath.
+  </p>
+</section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="container footer-inner">
+    <div>
+      <strong>SwingWebBrowser</strong>
+      <p>MIT-licensed demo of the
+        <a href="https://github.com/webliteca/swingwebview" target="_blank" rel="noopener">SwingWebView</a>
+        component, packaged with
+        <a href="https://www.jdeploy.com" target="_blank" rel="noopener">jDeploy</a>.
+        By <a href="https://sjhannah.com" target="_blank" rel="noopener">Steve Hannah</a>.</p>
+    </div>
+    <div>
+      <h4>Links</h4>
+      <ul>
+        <li><a href="https://github.com/webliteca/swingwebbrowser" target="_blank" rel="noopener">GitHub repository</a></li>
+        <li><a href="https://www.jdeploy.com/gh/webliteca/swingwebbrowser" target="_blank" rel="noopener">Download</a></li>
+        <li><a href="https://github.com/webliteca/swingwebbrowser/blob/main/README.md" target="_blank" rel="noopener">Full README</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4>Built with</h4>
+      <ul>
+        <li><a href="https://webliteca.github.io/swingwebview/" target="_blank" rel="noopener">SwingWebView</a> &mdash; native WebView</li>
+        <li><a href="https://www.jdeploy.com" target="_blank" rel="noopener">jDeploy</a> &mdash; native installers</li>
+        <li><a href="https://www.formdev.com/flatlaf/" target="_blank" rel="noopener">FlatLaf</a> &mdash; modern Swing L&amp;F</li>
+      </ul>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
