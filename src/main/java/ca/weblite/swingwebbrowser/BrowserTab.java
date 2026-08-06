@@ -130,19 +130,26 @@ public final class BrowserTab extends JPanel {
                 listener.onConsoleMessage(BrowserTab.this, msg);
             }
         });
-        // Route browser-initiated popups (window.open, target="_blank") into
-        // a new tab rather than a native pop-up window.  Returning false
-        // blocks the native engine's separate window; we open the requested
-        // URL in a fresh tab instead (mirroring how tabbed browsers handle
-        // popups).  popupRequested runs on the native UI thread off the EDT,
-        // so we must not touch Swing here -- capture the URL and marshal the
-        // tab creation to the EDT.
+        // INTERIM popup handling (pending swingwebview STORY-005-004, popup
+        // adoption).  The previous tab path blocked the native popup window
+        // and re-opened e.targetUrl() in a fresh tab via setUrl(url) -- a
+        // GET, so <form method="post" target="..."> popups lost their POST
+        // body and opener linkage (window.opener / postMessage broke).
+        //
+        // Returning true instead lets the native engine own the popup: WebKit
+        // drives the ORIGINAL request (POST verb + body) into its
+        // opener-linked child, so form-POST and OAuth "sign-in with popup"
+        // flows work correctly.  The trade-off is that popups open in a
+        // SEPARATE NATIVE WINDOW rather than a tab.
+        //
+        // Once popup adoption lands in the swingwebview dependency, replace
+        // this with popupDisposition() -> ADOPT + popupAdoptable() ->
+        // WebViewComponent.adoptPopup(popupId) to host that same opener-linked
+        // child (POST intact) inside a real tab.  See the swingwebview README
+        // "Adopting popups into a component".
         webView.setPopupHandler(new WebViewPopupHandler() {
             @Override public boolean popupRequested(WebViewPopupEvent e) {
-                final String target = e.targetUrl();
-                SwingUtilities.invokeLater(
-                    () -> listener.onPopupRequested(BrowserTab.this, target));
-                return false;
+                return true; // native opener-linked window; preserves POST
             }
         });
         add(webView, BorderLayout.CENTER);
