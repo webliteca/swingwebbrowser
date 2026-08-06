@@ -263,6 +263,18 @@ public final class BrowserFrame extends JFrame implements BrowserTab.Listener {
         close.setFocusable(false);
         close.setToolTipText("Close tab");
         close.addActionListener(e -> closeTab(tabs.indexOfComponent(tab)));
+        // Swing does not translate clicks on a custom tab component into a
+        // tab selection (mouse events don't bubble to the JTabbedPane's UI
+        // handler), so clicking the header's label/background would leave
+        // the selection unchanged.  Select the tab explicitly on press.
+        MouseAdapter selectOnPress = new MouseAdapter() {
+            @Override public void mousePressed(MouseEvent e) {
+                int i = tabs.indexOfComponent(tab);
+                if (i >= 0) tabs.setSelectedIndex(i);
+            }
+        };
+        header.addMouseListener(selectOnPress);
+        title.addMouseListener(selectOnPress);
         header.add(title);
         header.add(close);
         header.putClientProperty("titleLabel", title);
