@@ -133,6 +133,58 @@ public final class BrowserTab extends JPanel {
       + "  },true);"
       + "})();";
 
+    /** A current desktop Safari user-agent string.  Safari reports the frozen
+     *  "Intel Mac OS X 10_15_7" platform token even on Apple Silicon / newer
+     *  macOS, so this is a faithful value. */
+    public static final String SAFARI_UA =
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+      + "AppleWebKit/605.1.15 (KHTML, like Gecko) "
+      + "Version/18.3 Safari/605.1.15";
+
+    /** EXPERIMENT: client-side user-agent spoof.  When on, each new tab
+     *  injects {@link #UA_SPOOF_JS} at document-start, overriding the
+     *  JS-visible {@code navigator.userAgent} (and friends) with
+     *  {@link #SAFARI_UA}.  This ONLY affects client-side (JavaScript) UA
+     *  sniffing — it does NOT change the {@code User-Agent} HTTP request
+     *  header the server sees.  For server-side sniffing use the real
+     *  engine-level {@code WebViewComponent.setUserAgent(...)} once it ships
+     *  in the swingwebview dependency.  Default from the
+     *  {@code swingwebbrowser.spoofUa} system property. */
+    private static volatile boolean spoofSafariUa =
+        Boolean.getBoolean("swingwebbrowser.spoofUa");
+
+    /** @return whether client-side Safari UA spoofing is on. */
+    public static boolean isSpoofSafariUa() { return spoofSafariUa; }
+
+    /** Toggle client-side Safari UA spoofing for tabs created from now on. */
+    public static void setSpoofSafariUa(boolean on) { spoofSafariUa = on; }
+
+    /** Document-start shim for {@link #spoofSafariUa}.  Shadows the
+     *  navigator UA-related getters with Safari values.  Client-side only —
+     *  the HTTP User-Agent header is unchanged. */
+    static final String UA_SPOOF_JS =
+        "(function(){try{"
+      + "  var ua=" + jsString(SAFARI_UA) + ";"
+      + "  var av=ua.replace(/^Mozilla\\//,'');"
+      + "  Object.defineProperty(navigator,'userAgent',{get:function(){return ua;},configurable:true});"
+      + "  Object.defineProperty(navigator,'appVersion',{get:function(){return av;},configurable:true});"
+      + "  Object.defineProperty(navigator,'vendor',{get:function(){return 'Apple Computer, Inc.';},configurable:true});"
+      + "  Object.defineProperty(navigator,'platform',{get:function(){return 'MacIntel';},configurable:true});"
+      + "}catch(e){}})();";
+
+    /** Encode a Java string as a JS string literal (double-quoted, escaped). */
+    private static String jsString(String s) {
+        StringBuilder b = new StringBuilder("\"");
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '"' || c == '\\') b.append('\\').append(c);
+            else if (c == '\n') b.append("\\n");
+            else if (c == '\r') b.append("\\r");
+            else b.append(c);
+        }
+        return b.append('"').toString();
+    }
+
     private final WebViewComponent webView;
     private final Listener listener;
 
@@ -155,6 +207,11 @@ public final class BrowserTab extends JPanel {
         this.listener = listener;
         this.webView = WebViewComponent.create();
         webView.setDebug(true);
+        if (spoofSafariUa) {
+            // EXPERIMENT: client-side UA spoof.  Injected first so it wins
+            // before any page script reads navigator.userAgent.
+            webView.addOnBeforeLoad(UA_SPOOF_JS);
+        }
         webView.addOnBeforeLoad(NAV_SHIM_JS);
         webView.addJavascriptCallback("__swb_nav", new WebView.JavascriptCallback() {
             @Override public void run(String arg) {

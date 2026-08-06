@@ -205,6 +205,18 @@ public final class BrowserFrame extends JFrame implements BrowserTab.Listener {
             }
         });
         view.add(suppressPopups);
+        // EXPERIMENT: client-side Safari UA spoof (overrides navigator.userAgent
+        // only; not the HTTP header).  Applies to tabs opened from now on;
+        // enabling reloads the current tab so the shim applies from load.
+        JCheckBoxMenuItem spoofUa = new JCheckBoxMenuItem(
+            "Spoof Safari user agent — client-side (experiment)");
+        spoofUa.setSelected(BrowserTab.isSpoofSafariUa());
+        spoofUa.addActionListener(e -> {
+            BrowserTab.setSpoofSafariUa(spoofUa.isSelected());
+            BrowserTab t = activeTab();
+            if (t != null) t.reload();
+        });
+        view.add(spoofUa);
         bar.add(view);
 
         JMenu history = new JMenu("History");
