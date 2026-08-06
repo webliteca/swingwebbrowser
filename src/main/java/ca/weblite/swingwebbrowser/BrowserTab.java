@@ -185,6 +185,47 @@ public final class BrowserTab extends JPanel {
         return b.append('"').toString();
     }
 
+    /** EXPERIMENT: real engine-level Safari User-Agent (changes the HTTP
+     *  User-Agent header, not just navigator.userAgent).  Calls
+     *  {@code WebViewComponent.setUserAgent(String)} reflectively, so this
+     *  compiles against the published swingwebview and activates only once
+     *  the dependency is bumped to a build that has the method (see
+     *  swingwebview PR #44 / Canvas 21).  Default from the
+     *  {@code swingwebbrowser.realUa} system property. */
+    private static volatile boolean realSafariUa =
+        Boolean.getBoolean("swingwebbrowser.realUa");
+
+    /** @return whether the real (HTTP-header) Safari UA override is on. */
+    public static boolean isRealSafariUa() { return realSafariUa; }
+
+    /** Toggle the real Safari UA override for tabs created from now on. */
+    public static void setRealSafariUa(boolean on) { realSafariUa = on; }
+
+    /** Reflectively invoke {@code WebViewComponent.setUserAgent(String)}.
+     *  @return {@code true} if the method exists and was invoked;
+     *          {@code false} when the swingwebview dependency predates it. */
+    static boolean setEngineUserAgent(WebViewComponent wv, String ua) {
+        try {
+            java.lang.reflect.Method m =
+                wv.getClass().getMethod("setUserAgent", String.class);
+            m.invoke(wv, ua);
+            return true;
+        } catch (NoSuchMethodException e) {
+            return false; // dependency predates Canvas 21 setUserAgent
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /** Apply (or clear) the real Safari UA on this tab's engine and reload so
+     *  the change takes effect.
+     *  @return {@code true} if the engine supports setUserAgent. */
+    public boolean applyRealUserAgent(boolean on) {
+        boolean ok = setEngineUserAgent(webView, on ? SAFARI_UA : null);
+        if (ok) reload();
+        return ok;
+    }
+
     private final WebViewComponent webView;
     private final Listener listener;
 
@@ -211,6 +252,12 @@ public final class BrowserTab extends JPanel {
             // EXPERIMENT: client-side UA spoof.  Injected first so it wins
             // before any page script reads navigator.userAgent.
             webView.addOnBeforeLoad(UA_SPOOF_JS);
+        }
+        if (realSafariUa) {
+            // EXPERIMENT: real engine-level UA (HTTP header).  Set before the
+            // first navigation so the initial request carries it.  No-op
+            // against a swingwebview that predates setUserAgent.
+            setEngineUserAgent(webView, SAFARI_UA);
         }
         webView.addOnBeforeLoad(NAV_SHIM_JS);
         webView.addJavascriptCallback("__swb_nav", new WebView.JavascriptCallback() {

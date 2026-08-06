@@ -217,6 +217,30 @@ public final class BrowserFrame extends JFrame implements BrowserTab.Listener {
             if (t != null) t.reload();
         });
         view.add(spoofUa);
+        // EXPERIMENT: real engine-level Safari UA (changes the HTTP header).
+        // Calls WebViewComponent.setUserAgent reflectively; only takes effect
+        // once the swingwebview dependency is bumped to a build that has it
+        // (PR #44 / Canvas 21).  Applies to new tabs; toggling applies to the
+        // current tab and reloads.
+        JCheckBoxMenuItem realUa = new JCheckBoxMenuItem(
+            "Real Safari User-Agent — HTTP header (needs updated swingwebview)");
+        realUa.setSelected(BrowserTab.isRealSafariUa());
+        realUa.addActionListener(e -> {
+            boolean on = realUa.isSelected();
+            BrowserTab.setRealSafariUa(on);
+            BrowserTab t = activeTab();
+            boolean ok = (t == null) || t.applyRealUserAgent(on);
+            if (on && !ok) {
+                JOptionPane.showMessageDialog(this,
+                    "This build of swingwebview does not expose setUserAgent yet.\n"
+                  + "Bump the swingwebview dependency to a build with Canvas 21\n"
+                  + "(PR #44) to change the real HTTP User-Agent header.\n\n"
+                  + "The client-side spoof above works without that update.",
+                    "User-Agent override unavailable",
+                    JOptionPane.INFORMATION_MESSAGE);
+            }
+        });
+        view.add(realUa);
         bar.add(view);
 
         JMenu history = new JMenu("History");
