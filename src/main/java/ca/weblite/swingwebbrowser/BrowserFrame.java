@@ -19,6 +19,7 @@ import javax.swing.JComponent;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JList;
+import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
@@ -187,6 +188,23 @@ public final class BrowserFrame extends JFrame implements BrowserTab.Listener {
             setConsoleVisible(consoleBtn.isSelected());
         });
         view.add(console);
+        view.addSeparator();
+        // EXPERIMENT: keep popups in the current window (JS injection rewrites
+        // form/anchor targets to _self and polyfills window.open ->
+        // location.assign).  Applies to tabs opened from now on; enabling also
+        // applies the shim to the current page immediately.
+        JCheckBoxMenuItem suppressPopups = new JCheckBoxMenuItem(
+            "Redirect popups to current window (experiment)");
+        suppressPopups.setSelected(BrowserTab.isSuppressPopups());
+        suppressPopups.addActionListener(e -> {
+            boolean on = suppressPopups.isSelected();
+            BrowserTab.setSuppressPopups(on);
+            if (on) {
+                BrowserTab t = activeTab();
+                if (t != null) t.evalJs(BrowserTab.POPUP_SUPPRESS_JS);
+            }
+        });
+        view.add(suppressPopups);
         bar.add(view);
 
         JMenu history = new JMenu("History");

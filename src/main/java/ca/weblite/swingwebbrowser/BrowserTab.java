@@ -86,6 +86,53 @@ public final class BrowserTab extends JPanel {
       + "  }).observe(document.documentElement,{childList:true,subtree:true}); }catch(e){}"
       + "})();";
 
+    /** EXPERIMENT: "redirect popups to the current window" mode.  When on,
+     *  each new tab injects {@link #POPUP_SUPPRESS_JS} at document-start and
+     *  blocks native popups, so {@code window.open} and {@code target="_blank"}
+     *  / {@code target="…"} navigations happen IN the current tab.  A
+     *  {@code <form method="post" target="…">} rewritten to {@code _self}
+     *  submits in-page, so the browser performs the POST natively and the body
+     *  is preserved -- no popup, no new tab, no adoption.  Applies to tabs
+     *  created while enabled (a document-start script can't be removed after a
+     *  tab is built).  Default from the {@code swingwebbrowser.suppressPopups}
+     *  system property. */
+    private static volatile boolean suppressPopups =
+        Boolean.getBoolean("swingwebbrowser.suppressPopups");
+
+    /** @return whether "redirect popups to current window" mode is on. */
+    public static boolean isSuppressPopups() { return suppressPopups; }
+
+    /** Toggle "redirect popups to current window" mode for tabs created from
+     *  now on.  Existing tabs keep the behaviour they were built with. */
+    public static void setSuppressPopups(boolean on) { suppressPopups = on; }
+
+    /** Document-start shim for {@link #suppressPopups} mode.  Polyfills
+     *  {@code window.open} to navigate the current window, and rewrites
+     *  non-{@code _self} form / anchor targets to {@code _self} on submit /
+     *  click so popups land in this tab (a POST form submits in-page, native,
+     *  with its body intact).  Idempotent per document. */
+    static final String POPUP_SUPPRESS_JS =
+        "(function(){"
+      + "  if(window.__swb_popup_suppress__)return;"
+      + "  window.__swb_popup_suppress__=true;"
+      + "  window.open=function(url,name,features){"
+      + "    if(url){try{window.location.assign(url);}catch(e){"
+      + "      try{window.location.href=url;}catch(e2){}}}"
+      + "    return window;"          // truthy: callers don't see 'popup blocked'
+      + "  };"
+      + "  document.addEventListener('submit',function(e){"
+      + "    var f=e.target;"
+      + "    if(f&&f.tagName==='FORM'){var t=f.getAttribute('target');"
+      + "      if(t&&t!=='_self'){f.setAttribute('target','_self');}}"
+      + "  },true);"
+      + "  document.addEventListener('click',function(e){"
+      + "    var n=e.target;"
+      + "    var a=(n&&n.closest)?n.closest('a[target]'):null;"
+      + "    if(a){var t=a.getAttribute('target');"
+      + "      if(t&&t!=='_self'){a.setAttribute('target','_self');}}"
+      + "  },true);"
+      + "})();";
+
     private final WebViewComponent webView;
     private final Listener listener;
 
@@ -130,28 +177,39 @@ public final class BrowserTab extends JPanel {
                 listener.onConsoleMessage(BrowserTab.this, msg);
             }
         });
-        // INTERIM popup handling (pending swingwebview STORY-005-004, popup
-        // adoption).  The previous tab path blocked the native popup window
-        // and re-opened e.targetUrl() in a fresh tab via setUrl(url) -- a
-        // GET, so <form method="post" target="..."> popups lost their POST
-        // body and opener linkage (window.opener / postMessage broke).
-        //
-        // Returning true instead lets the native engine own the popup: WebKit
-        // drives the ORIGINAL request (POST verb + body) into its
-        // opener-linked child, so form-POST and OAuth "sign-in with popup"
-        // flows work correctly.  The trade-off is that popups open in a
-        // SEPARATE NATIVE WINDOW rather than a tab.
-        //
-        // Once popup adoption lands in the swingwebview dependency, replace
-        // this with popupDisposition() -> ADOPT + popupAdoptable() ->
-        // WebViewComponent.adoptPopup(popupId) to host that same opener-linked
-        // child (POST intact) inside a real tab.  See the swingwebview README
-        // "Adopting popups into a component".
-        webView.setPopupHandler(new WebViewPopupHandler() {
-            @Override public boolean popupRequested(WebViewPopupEvent e) {
-                return true; // native opener-linked window; preserves POST
-            }
-        });
+        if (suppressPopups) {
+            // EXPERIMENT: keep popups in THIS window.  The document-start shim
+            // polyfills window.open (-> location.assign) and rewrites form /
+            // anchor targets to _self, so popups never reach the native popup
+            // channel; a POST form submits in-page (native, body preserved).
+            // Block native popups too, as belt-and-suspenders for anything the
+            // shim doesn't catch (e.g. a JS-driven form.submit() with target).
+            webView.addOnBeforeLoad(POPUP_SUPPRESS_JS);
+            webView.setPopupHandler(null);
+        } else {
+            // INTERIM popup handling (pending swingwebview STORY-005-004, popup
+            // adoption).  The previous tab path blocked the native popup window
+            // and re-opened e.targetUrl() in a fresh tab via setUrl(url) -- a
+            // GET, so <form method="post" target="..."> popups lost their POST
+            // body and opener linkage (window.opener / postMessage broke).
+            //
+            // Returning true instead lets the native engine own the popup:
+            // WebKit drives the ORIGINAL request (POST verb + body) into its
+            // opener-linked child, so form-POST and OAuth "sign-in with popup"
+            // flows work correctly.  The trade-off is that popups open in a
+            // SEPARATE NATIVE WINDOW rather than a tab.
+            //
+            // Once popup adoption lands in the swingwebview dependency, replace
+            // this with popupDisposition() -> ADOPT + popupAdoptable() ->
+            // WebViewComponent.adoptPopup(popupId) to host that same
+            // opener-linked child (POST intact) inside a real tab.  See the
+            // swingwebview README "Adopting popups into a component".
+            webView.setPopupHandler(new WebViewPopupHandler() {
+                @Override public boolean popupRequested(WebViewPopupEvent e) {
+                    return true; // native opener-linked window; preserves POST
+                }
+            });
+        }
         add(webView, BorderLayout.CENTER);
     }
 
