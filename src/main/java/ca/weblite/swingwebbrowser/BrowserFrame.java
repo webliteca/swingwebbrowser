@@ -353,6 +353,13 @@ public final class BrowserFrame extends JFrame implements BrowserTab.Listener {
         devConsole.onConsoleMessage(tab, msg);
     }
 
+    @Override public void onPopupRequested(BrowserTab source, String url) {
+        // Open popups (window.open / target="_blank") as a new tab.  An
+        // empty target (window.open() with no URL) becomes a blank tab.
+        String target = (url == null || url.isEmpty()) ? "about:blank" : url;
+        newTab(target);
+    }
+
     // ------------------------------------------------------------------
     // Bookmarks
     // ------------------------------------------------------------------

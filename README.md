@@ -23,6 +23,9 @@ APIs being demonstrated stand out:
 * **Tabs** -- new tab, middle-click or ✕ to close.  Each tab owns its
   own `WebViewComponent` and its own console buffer.  The window
   title and tab strip both follow the active page's `<title>`.
+* **Popups** -- browser-initiated popups (`window.open` and
+  `target="_blank"` links) open in a new tab instead of a separate
+  native window, via `WebViewComponent.setPopupHandler`.
 * **Bookmarks** -- starable on the toolbar, persisted to
   `~/.swingwebbrowser/bookmarks.tsv`.  Saved bookmarks appear as
   menu items under *Bookmarks*; full management dialog via
@@ -51,7 +54,7 @@ APIs being demonstrated stand out:
     <https://developer.microsoft.com/microsoft-edge/webview2/>.
 
 The native libraries are bundled inside the
-[`ca.weblite:webview:1.0.5`](https://repo1.maven.org/maven2/ca/weblite/webview/1.0.5/)
+[`ca.weblite:webview:1.1.0`](https://repo1.maven.org/maven2/ca/weblite/webview/1.1.0/)
 artifact on Maven Central -- no extra install step for the library
 itself.
 

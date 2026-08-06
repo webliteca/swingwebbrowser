@@ -3,6 +3,8 @@ package ca.weblite.swingwebbrowser;
 import ca.weblite.webview.ConsoleListener;
 import ca.weblite.webview.ConsoleMessage;
 import ca.weblite.webview.WebView;
+import ca.weblite.webview.WebViewPopupEvent;
+import ca.weblite.webview.WebViewPopupHandler;
 import ca.weblite.webview.swing.WebViewComponent;
 
 import java.awt.BorderLayout;
@@ -32,6 +34,13 @@ public final class BrowserTab extends JPanel {
         void onTitleChanged(BrowserTab tab, String title);
         void onNavStateChanged(BrowserTab tab);
         void onConsoleMessage(BrowserTab tab, ConsoleMessage msg);
+
+        /** A page in {@code source} asked to open a popup
+         *  ({@code window.open} or a {@code target="_blank"} link).  The
+         *  browser opens {@code url} in a new tab instead of letting the
+         *  native engine spawn a separate window.  Always invoked on the
+         *  Swing EDT. */
+        void onPopupRequested(BrowserTab source, String url);
     }
 
     /** JS shim injected into every navigated document.  It calls back
@@ -119,6 +128,21 @@ public final class BrowserTab extends JPanel {
             @Override public void onMessage(ConsoleMessage msg) {
                 consoleBuffer.add(msg);
                 listener.onConsoleMessage(BrowserTab.this, msg);
+            }
+        });
+        // Route browser-initiated popups (window.open, target="_blank") into
+        // a new tab rather than a native pop-up window.  Returning false
+        // blocks the native engine's separate window; we open the requested
+        // URL in a fresh tab instead (mirroring how tabbed browsers handle
+        // popups).  popupRequested runs on the native UI thread off the EDT,
+        // so we must not touch Swing here -- capture the URL and marshal the
+        // tab creation to the EDT.
+        webView.setPopupHandler(new WebViewPopupHandler() {
+            @Override public boolean popupRequested(WebViewPopupEvent e) {
+                final String target = e.targetUrl();
+                SwingUtilities.invokeLater(
+                    () -> listener.onPopupRequested(BrowserTab.this, target));
+                return false;
             }
         });
         add(webView, BorderLayout.CENTER);
