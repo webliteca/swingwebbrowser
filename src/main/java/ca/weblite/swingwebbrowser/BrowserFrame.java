@@ -191,6 +191,8 @@ public final class BrowserFrame extends JFrame implements BrowserTab.Listener {
         view.addSeparator();
         view.add(buildUserAgentMenu());
         view.add(buildPopupBehaviorMenu());
+        view.addSeparator();
+        view.add(menuItem("View Headers…", 0, this::showHeadersDialog));
         bar.add(view);
 
         JMenu history = new JMenu("History");
@@ -255,6 +257,235 @@ public final class BrowserFrame extends JFrame implements BrowserTab.Listener {
             menu.add(item);
         }
         return menu;
+    }
+
+    // ------------------------------------------------------------------
+    // Header inspector
+    // ------------------------------------------------------------------
+
+    /** View ▸ View Headers…: a diagnostic dialog with two views of the current
+     *  page's headers, useful when a site blocks the browser and you need to
+     *  see what it's reacting to:
+     *  <ul>
+     *    <li><b>Engine response</b> — a second {@code fetch(location.href)} run
+     *        inside the page, so it reuses the engine's real session (cookies,
+     *        the User-Agent actually sent, real TLS).  These response headers
+     *        are authoritative, but JavaScript can't read the outgoing request
+     *        headers.</li>
+     *    <li><b>HTTP probe</b> — a {@link java.net.http.HttpClient} request from
+     *        Java that shows the full request headers sent <i>and</i> the
+     *        response status/headers/body, re-runnable per User-Agent.  It's a
+     *        separate session with a different TLS fingerprint, so treat it as
+     *        an approximation of the real request.</li>
+     *  </ul>
+     */
+    private void showHeadersDialog() {
+        BrowserTab tab = activeTab();
+        if (tab == null || tab.currentUrl() == null || tab.currentUrl().isEmpty()) {
+            JOptionPane.showMessageDialog(this,
+                "Open a page first, then view its headers.",
+                "View Headers", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        javax.swing.JTextArea engineArea = monospaceArea();
+        javax.swing.JTextArea probeArea = monospaceArea();
+
+        JLabel urlLabel = new JLabel();
+        javax.swing.JComboBox<BrowserTab.UserAgentOption> uaCombo =
+            new javax.swing.JComboBox<>(BrowserTab.UserAgentOption.values());
+        uaCombo.setSelectedItem(BrowserTab.getUserAgentOption());
+        uaCombo.setToolTipText("User-Agent the HTTP probe sends "
+            + "(\"Default\" mirrors the engine's own navigator.userAgent)");
+        JButton refresh = new JButton("Refresh");
+
+        JPanel controls = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
+        controls.add(new JLabel("Probe User-Agent:"));
+        controls.add(uaCombo);
+        controls.add(refresh);
+
+        JPanel urlRow = new JPanel(new BorderLayout());
+        urlRow.setBorder(BorderFactory.createEmptyBorder(6, 8, 0, 8));
+        urlRow.add(urlLabel, BorderLayout.CENTER);
+
+        JTabbedPane tabsPane = new JTabbedPane();
+        tabsPane.addTab("Engine response (real session)", new JScrollPane(engineArea));
+        tabsPane.addTab("HTTP probe (request + response)", new JScrollPane(probeArea));
+
+        JPanel north = new JPanel(new BorderLayout());
+        north.add(urlRow, BorderLayout.NORTH);
+        north.add(controls, BorderLayout.SOUTH);
+
+        JButton close = new JButton("Close");
+        JPanel south = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        south.add(close);
+
+        JPanel root = new JPanel(new BorderLayout(4, 4));
+        root.add(north, BorderLayout.NORTH);
+        root.add(tabsPane, BorderLayout.CENTER);
+        root.add(south, BorderLayout.SOUTH);
+
+        javax.swing.JDialog dialog =
+            new javax.swing.JDialog(this, "Request / Response Headers", false);
+        dialog.getContentPane().add(root);
+        dialog.setSize(780, 580);
+        dialog.setLocationRelativeTo(this);
+
+        Runnable run = () -> {
+            String url = tab.currentUrl();
+            urlLabel.setText("<html><b>URL:</b> " + escape(url) + "</html>");
+            engineArea.setText("Loading response headers from the engine session…");
+            probeArea.setText("Running HTTP probe…");
+            loadEngineHeaders(tab, engineArea);
+            BrowserTab.UserAgentOption sel =
+                (BrowserTab.UserAgentOption) uaCombo.getSelectedItem();
+            if (sel != null && sel.ua != null) {
+                runHttpProbe(url, sel.ua, probeArea);
+            } else {
+                // "Default": resolve the engine's real UA (navigator.userAgent)
+                // so the probe mirrors what the browser sends, then probe.
+                tab.webView().evalAsync(
+                        "btoa(unescape(encodeURIComponent(navigator.userAgent)))")
+                    .orTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+                    .whenComplete((res, err) -> SwingUtilities.invokeLater(() ->
+                        runHttpProbe(url, err == null ? decodeEvalBase64(res) : null,
+                                     probeArea)));
+            }
+        };
+        refresh.addActionListener(e -> run.run());
+        close.addActionListener(e -> dialog.dispose());
+        dialog.setVisible(true);
+        run.run();
+    }
+
+    /** Fetch the current page again from inside the engine and render its
+     *  response status + headers into {@code area}.  Reuses the engine's real
+     *  session; response headers only (JS can't read request headers). */
+    private void loadEngineHeaders(BrowserTab tab, javax.swing.JTextArea area) {
+        final String js =
+            "(function(){"
+          + "  return fetch(location.href,{credentials:'include',cache:'no-store'})"
+          + "    .then(function(r){"
+          + "      var out=r.status+' '+r.statusText+'\\n';"
+          + "      try{ r.headers.forEach(function(v,k){ out+=k+': '+v+'\\n'; }); }"
+          + "      catch(e){ out+='(headers not enumerable: '+e+')\\n'; }"
+          + "      return out;"
+          + "    })"
+          + "    .catch(function(e){ return 'fetch failed: '+((e&&e.message)||e); })"
+          + "    .then(function(s){ return btoa(unescape(encodeURIComponent(s))); });"
+          + "})()";
+        tab.webView().evalAsync(js)
+            .orTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+            .whenComplete((res, err) -> SwingUtilities.invokeLater(() -> {
+                if (err != null) {
+                    area.setText("Engine fetch failed or timed out:\n" + err
+                        + "\n\n(The engine may not support evalAsync, or the page\n"
+                        + "blocked the fetch.  Try the HTTP probe tab.)");
+                } else {
+                    area.setText(
+                        "# Response headers as seen by the engine's own session\n"
+                      + "# (real WebKit/Edge cookies, User-Agent, and TLS — a second\n"
+                      + "# GET of this URL).  JavaScript cannot read the outgoing\n"
+                      + "# request headers; see the HTTP probe tab for those.\n\n"
+                      + decodeEvalBase64(res));
+                }
+            }));
+    }
+
+    /** Issue a Java-side HTTP GET for {@code url} with {@code ua} (null → JDK
+     *  default) and render request + response headers and a body snippet into
+     *  {@code area}.  Runs on a background thread; updates the area on the EDT. */
+    private void runHttpProbe(String url, String ua, javax.swing.JTextArea area) {
+        String lower = url.toLowerCase(java.util.Locale.ROOT);
+        if (!lower.startsWith("http://") && !lower.startsWith("https://")) {
+            area.setText("The HTTP probe only supports http/https URLs.\n"
+                + "Current URL: " + url);
+            return;
+        }
+        new Thread(() -> {
+            StringBuilder sb = new StringBuilder();
+            try {
+                java.net.http.HttpClient client = java.net.http.HttpClient.newBuilder()
+                    .followRedirects(java.net.http.HttpClient.Redirect.NORMAL)
+                    .connectTimeout(java.time.Duration.ofSeconds(15))
+                    .build();
+
+                java.net.http.HttpRequest.Builder rb = java.net.http.HttpRequest.newBuilder()
+                    .uri(java.net.URI.create(url))
+                    .timeout(java.time.Duration.ofSeconds(20))
+                    .GET()
+                    .header("Accept",
+                        "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                    .header("Accept-Language", "en-US,en;q=0.9");
+                if (ua != null && !ua.isEmpty()) rb.header("User-Agent", ua);
+                java.net.http.HttpRequest req = rb.build();
+
+                sb.append("### REQUEST\n");
+                sb.append("GET ").append(url).append('\n');
+                req.headers().map().forEach((k, vs) ->
+                    vs.forEach(v -> sb.append(k).append(": ").append(v).append('\n')));
+                if (ua == null || ua.isEmpty()) {
+                    sb.append("User-Agent: (JDK default — could not resolve engine UA)\n");
+                }
+                sb.append("# Note: the JDK adds Host and Connection at send time.\n");
+                sb.append("# This probe is a separate HTTP client — different TLS\n");
+                sb.append("# fingerprint and no engine cookies — so a fingerprint- or\n");
+                sb.append("# cookie-based blocker may respond differently than the real\n");
+                sb.append("# browser.  Compare against the Engine response tab.\n\n");
+
+                java.net.http.HttpResponse<String> resp =
+                    client.send(req, java.net.http.HttpResponse.BodyHandlers.ofString());
+
+                sb.append("### RESPONSE\n");
+                sb.append("HTTP ").append(resp.version()).append(' ')
+                  .append(resp.statusCode()).append('\n');
+                resp.headers().map().forEach((k, vs) ->
+                    vs.forEach(v -> sb.append(k).append(": ").append(v).append('\n')));
+
+                String body = resp.body();
+                if (body != null && !body.isEmpty()) {
+                    String snippet = body.length() > 2000
+                        ? body.substring(0, 2000) + "\n… (truncated)"
+                        : body;
+                    sb.append("\n### BODY (first 2 KB)\n").append(snippet).append('\n');
+                }
+            } catch (Exception ex) {
+                sb.append("\nProbe failed: ").append(ex).append('\n');
+            }
+            final String text = sb.toString();
+            SwingUtilities.invokeLater(() -> {
+                area.setText(text);
+                area.setCaretPosition(0);
+            });
+        }, "header-probe").start();
+    }
+
+    private static javax.swing.JTextArea monospaceArea() {
+        javax.swing.JTextArea a = new javax.swing.JTextArea();
+        a.setEditable(false);
+        a.setLineWrap(true);
+        a.setWrapStyleWord(false);
+        a.setFont(new java.awt.Font(java.awt.Font.MONOSPACED, java.awt.Font.PLAIN, 12));
+        a.setBorder(BorderFactory.createEmptyBorder(6, 8, 6, 8));
+        return a;
+    }
+
+    /** Decode the JSON-string result of {@code evalAsync} whose value is a
+     *  base64 payload (our header snippets are base64-wrapped on the JS side to
+     *  dodge JSON escaping).  Falls back to the raw text if it isn't base64. */
+    private static String decodeEvalBase64(String jsonResult) {
+        if (jsonResult == null) return "(no result)";
+        String s = jsonResult.trim();
+        if (s.length() >= 2 && s.charAt(0) == '"' && s.charAt(s.length() - 1) == '"') {
+            s = s.substring(1, s.length() - 1);
+        }
+        if (s.isEmpty() || s.equals("null")) return "(empty)";
+        try {
+            byte[] bytes = java.util.Base64.getDecoder().decode(s);
+            return new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException e) {
+            return jsonResult; // not base64 — show raw
+        }
     }
 
     private JMenuItem menuItem(String label, int keyCode, Runnable action) {

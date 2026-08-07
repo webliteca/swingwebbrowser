@@ -43,6 +43,17 @@ APIs being demonstrated stand out:
   modern desktop **Safari**, **Chrome**, **Edge**, or **Firefox** string
   (via `WebViewComponent.setUserAgent`).  Applies to new tabs and reloads
   the current tab so the change takes effect immediately.
+* **View Headers** -- *View → View Headers…* opens a diagnostic dialog
+  for figuring out why a site treats the browser differently.  Two tabs:
+  **Engine response** re-fetches the current URL from inside the page, so
+  the response headers reflect the engine's real session (cookies, the
+  User-Agent actually sent, real TLS) -- JavaScript can't read the
+  outgoing request headers, so those aren't shown here.  **HTTP probe**
+  issues the same request from a Java `HttpClient`, showing the full
+  request headers sent *and* the response status/headers/body, and lets
+  you re-run it under any of the User-Agent presets.  The probe is a
+  separate session with a different TLS fingerprint, so treat it as an
+  approximation of the real request.
 * **Bookmarks** -- starable on the toolbar, persisted to
   `~/.swingwebbrowser/bookmarks.tsv`.  Saved bookmarks appear as
   menu items under *Bookmarks*; full management dialog via
