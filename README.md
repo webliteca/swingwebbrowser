@@ -23,9 +23,37 @@ APIs being demonstrated stand out:
 * **Tabs** -- new tab, middle-click or ✕ to close.  Each tab owns its
   own `WebViewComponent` and its own console buffer.  The window
   title and tab strip both follow the active page's `<title>`.
-* **Popups** -- browser-initiated popups (`window.open` and
-  `target="_blank"` links) open in a new tab instead of a separate
-  native window, via `WebViewComponent.setPopupHandler`.
+* **Popups** -- *View → Popup Behavior* selects how browser-initiated
+  popups (`window.open` and `target="_blank"` links / forms) are
+  handled, for tabs opened from then on:
+  * **Native** (default) -- host each popup in a separate native
+    top-level window (`PopupDisposition.NATIVE_WINDOW`).
+  * **Tab** -- open the popup in a new tab using swingwebview's
+    **adopt** strategy (`PopupDisposition.ADOPT` +
+    `WebViewComponent.adoptPopup`).  The tab hosts the engine's own
+    opener-linked child, so a `<form method="post" target="…">` popup
+    keeps its POST body and `window.opener` / `postMessage` keep
+    working -- unlike blocking the popup and re-opening its URL (a GET,
+    which would lose both).
+  * **None** -- suppress popups: a document-start shim rewrites
+    `window.open` / `target="…"` to the current window, so the popup
+    navigates in place.
+* **User Agent** -- *View → User Agent* selects the `User-Agent` HTTP
+  header sent for requests: **Default** (the engine's built-in UA), or a
+  modern desktop **Safari**, **Chrome**, **Edge**, or **Firefox** string
+  (via `WebViewComponent.setUserAgent`).  Applies to new tabs and reloads
+  the current tab so the change takes effect immediately.
+* **View Headers** -- *View → View Headers…* opens a diagnostic dialog
+  for figuring out why a site treats the browser differently.  Two tabs:
+  **Engine response** re-fetches the current URL from inside the page, so
+  the response headers reflect the engine's real session (cookies, the
+  User-Agent actually sent, real TLS) -- JavaScript can't read the
+  outgoing request headers, so those aren't shown here.  **HTTP probe**
+  issues the same request from a Java `HttpClient`, showing the full
+  request headers sent *and* the response status/headers/body, and lets
+  you re-run it under any of the User-Agent presets.  The probe is a
+  separate session with a different TLS fingerprint, so treat it as an
+  approximation of the real request.
 * **Bookmarks** -- starable on the toolbar, persisted to
   `~/.swingwebbrowser/bookmarks.tsv`.  Saved bookmarks appear as
   menu items under *Bookmarks*; full management dialog via

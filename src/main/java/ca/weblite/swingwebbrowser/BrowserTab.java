@@ -2,6 +2,7 @@ package ca.weblite.swingwebbrowser;
 
 import ca.weblite.webview.ConsoleListener;
 import ca.weblite.webview.ConsoleMessage;
+import ca.weblite.webview.PopupDisposition;
 import ca.weblite.webview.WebView;
 import ca.weblite.webview.WebViewPopupEvent;
 import ca.weblite.webview.WebViewPopupHandler;
@@ -35,12 +36,14 @@ public final class BrowserTab extends JPanel {
         void onNavStateChanged(BrowserTab tab);
         void onConsoleMessage(BrowserTab tab, ConsoleMessage msg);
 
-        /** A page in {@code source} asked to open a popup
-         *  ({@code window.open} or a {@code target="_blank"} link).  The
-         *  browser opens {@code url} in a new tab instead of letting the
-         *  native engine spawn a separate window.  Always invoked on the
-         *  Swing EDT. */
-        void onPopupRequested(BrowserTab source, String url);
+        /** A page in {@code source} opened a popup ({@code window.open}, or a
+         *  {@code target="_blank"} / {@code target="…"} link or form) that the
+         *  engine retained as an opener-linked child — POST verb + body and
+         *  {@code window.opener} intact.  {@code adoptedView} is the {@link
+         *  WebViewComponent} that adopted that child; host it in a new tab.
+         *  {@code targetUrl} is the popup's target, used only to seed the URL
+         *  bar / tab title.  Always invoked on the Swing EDT. */
+        void onPopupAdopted(BrowserTab source, WebViewComponent adoptedView, String targetUrl);
     }
 
     /** JS shim injected into every navigated document.  It calls back
@@ -86,6 +89,160 @@ public final class BrowserTab extends JPanel {
       + "  }).observe(document.documentElement,{childList:true,subtree:true}); }catch(e){}"
       + "})();";
 
+    /** How a browser-initiated popup ({@code window.open}, or a
+     *  {@code target="_blank"} / {@code target="…"} link or form) is handled.
+     *  Chosen from the View ▸ Popup Behavior menu; applies to tabs created
+     *  from now on (the popup handler / document-start shim is wired when a tab
+     *  is built and can't be swapped afterwards). */
+    public enum PopupMode {
+        /** Host each popup in an engine-owned native top-level window — the
+         *  engine's default.  The POST verb + body and {@code window.opener}
+         *  survive, but the popup is a separate OS window, not a tab. */
+        NATIVE("Native"),
+        /** Adopt each popup's opener-linked child into a new tab via the adopt
+         *  strategy (swingwebview Canvas 18): the engine retains the child it
+         *  already drove the request into, so the POST body and
+         *  {@code window.opener} survive, now inside a tab. */
+        TAB("Tab"),
+        /** Suppress popups: block the native popup channel and inject
+         *  {@link #POPUP_SUPPRESS_JS} so {@code window.open} and
+         *  {@code target="…"} navigations happen in the current window (a POST
+         *  form rewritten to {@code _self} submits in-page, body preserved). */
+        NONE("None");
+
+        /** Menu label. */
+        public final String label;
+        PopupMode(String label) { this.label = label; }
+    }
+
+    /** The popup strategy applied to tabs created from now on.  Defaults to
+     *  {@link PopupMode#NATIVE}. */
+    private static volatile PopupMode popupMode = PopupMode.NATIVE;
+
+    /** @return the popup strategy new tabs are built with. */
+    public static PopupMode getPopupMode() { return popupMode; }
+
+    /** Select the popup strategy for tabs created from now on.  Existing tabs
+     *  keep the behaviour they were built with. */
+    public static void setPopupMode(PopupMode mode) {
+        if (mode != null) popupMode = mode;
+    }
+
+    /** Document-start shim for {@link #suppressPopups} mode.  Polyfills
+     *  {@code window.open} to navigate the current window, and rewrites
+     *  non-{@code _self} form / anchor targets to {@code _self} on submit /
+     *  click so popups land in this tab (a POST form submits in-page, native,
+     *  with its body intact).  Idempotent per document. */
+    static final String POPUP_SUPPRESS_JS =
+        "(function(){"
+      + "  if(window.__swb_popup_suppress__)return;"
+      + "  window.__swb_popup_suppress__=true;"
+      + "  window.open=function(url,name,features){"
+      + "    if(url){try{window.location.assign(url);}catch(e){"
+      + "      try{window.location.href=url;}catch(e2){}}}"
+      + "    return window;"          // truthy: callers don't see 'popup blocked'
+      + "  };"
+      + "  document.addEventListener('submit',function(e){"
+      + "    var f=e.target;"
+      + "    if(f&&f.tagName==='FORM'){var t=f.getAttribute('target');"
+      + "      if(t&&t!=='_self'){f.setAttribute('target','_self');}}"
+      + "  },true);"
+      + "  document.addEventListener('click',function(e){"
+      + "    var n=e.target;"
+      + "    var a=(n&&n.closest)?n.closest('a[target]'):null;"
+      + "    if(a){var t=a.getAttribute('target');"
+      + "      if(t&&t!=='_self'){a.setAttribute('target','_self');}}"
+      + "  },true);"
+      + "})();";
+
+    /** A current desktop Safari user-agent string.  Safari reports the frozen
+     *  "Intel Mac OS X 10_15_7" platform token even on Apple Silicon / newer
+     *  macOS, so this is a faithful value. */
+    public static final String SAFARI_UA =
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+      + "AppleWebKit/605.1.15 (KHTML, like Gecko) "
+      + "Version/18.3 Safari/605.1.15";
+
+    /** A current desktop Chrome (Windows) user-agent string. */
+    public static final String CHROME_UA =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+      + "AppleWebKit/537.36 (KHTML, like Gecko) "
+      + "Chrome/133.0.0.0 Safari/537.36";
+
+    /** A current desktop Edge (Windows) user-agent string — Chrome's UA with
+     *  the trailing {@code Edg/…} token. */
+    public static final String EDGE_UA =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+      + "AppleWebKit/537.36 (KHTML, like Gecko) "
+      + "Chrome/133.0.0.0 Safari/537.36 Edg/133.0.0.0";
+
+    /** A current desktop Firefox (Windows) user-agent string. */
+    public static final String FIREFOX_UA =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:135.0) "
+      + "Gecko/20100101 Firefox/135.0";
+
+    /** The User-Agent sent for requests, chosen from the View ▸ User Agent
+     *  menu.  Applies to tabs created from now on and — via
+     *  {@link #applyUserAgent} — the current tab when the selection changes. */
+    public enum UserAgentOption {
+        /** The engine's built-in User-Agent (no override). */
+        DEFAULT("Default", null),
+        /** Modern desktop Safari. */
+        SAFARI("Safari", SAFARI_UA),
+        /** Modern desktop Chrome. */
+        CHROME("Chrome", CHROME_UA),
+        /** Modern desktop Edge. */
+        EDGE("Edge", EDGE_UA),
+        /** Modern desktop Firefox. */
+        FIREFOX("Firefox", FIREFOX_UA);
+
+        /** Menu label. */
+        public final String label;
+        /** UA string to send, or {@code null} for the engine default. */
+        public final String ua;
+        UserAgentOption(String label, String ua) { this.label = label; this.ua = ua; }
+    }
+
+    /** The User-Agent applied to tabs created from now on.  Defaults to
+     *  {@link UserAgentOption#DEFAULT} (the engine's built-in UA). */
+    private static volatile UserAgentOption userAgent = UserAgentOption.DEFAULT;
+
+    /** @return the User-Agent new tabs are built with. */
+    public static UserAgentOption getUserAgentOption() { return userAgent; }
+
+    /** Select the User-Agent for tabs created from now on.  Existing tabs keep
+     *  their UA until reloaded (see {@link #applyUserAgent}). */
+    public static void setUserAgentOption(UserAgentOption option) {
+        if (option != null) userAgent = option;
+    }
+
+    /** Set the engine-level {@code User-Agent} (the real HTTP request header,
+     *  not just {@code navigator.userAgent}).  {@code ua == null} clears the
+     *  override back to the engine default.  Invoked reflectively so this still
+     *  compiles against a swingwebview that predates {@code setUserAgent}.
+     *  @return {@code true} if the method exists and was invoked. */
+    static boolean setEngineUserAgent(WebViewComponent wv, String ua) {
+        try {
+            java.lang.reflect.Method m =
+                wv.getClass().getMethod("setUserAgent", String.class);
+            m.invoke(wv, ua);
+            return true;
+        } catch (NoSuchMethodException e) {
+            return false; // dependency predates setUserAgent
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /** Apply {@code ua} (or clear it with {@code null}) on this tab's engine and
+     *  reload so the change takes effect.
+     *  @return {@code true} if the engine supports setUserAgent. */
+    public boolean applyUserAgent(String ua) {
+        boolean ok = setEngineUserAgent(webView, ua);
+        if (ok) reload();
+        return ok;
+    }
+
     private final WebViewComponent webView;
     private final Listener listener;
 
@@ -103,11 +260,32 @@ public final class BrowserTab extends JPanel {
 
     private final List<ConsoleMessage> consoleBuffer = new ArrayList<>();
 
+    /** Create a normal tab backed by a fresh engine view. */
     public BrowserTab(Listener listener) {
+        this(listener, WebViewComponent.create());
+    }
+
+    /** Create a tab that hosts an ADOPTED popup child — the engine's own
+     *  opener-linked view, into which WebKit already drove the original
+     *  request (POST verb + body), with {@code window.opener} intact.  Used
+     *  by {@link Listener#onPopupAdopted}.  The caller seeds the URL via
+     *  {@link #seedInitialUrl} rather than {@link #load}: a {@code load()}
+     *  would issue a GET and discard the popup's in-flight POST. */
+    static BrowserTab adopting(Listener listener, WebViewComponent adoptedView) {
+        return new BrowserTab(listener, adoptedView);
+    }
+
+    private BrowserTab(Listener listener, WebViewComponent webView) {
         super(new BorderLayout());
         this.listener = listener;
-        this.webView = WebViewComponent.create();
+        this.webView = webView;
         webView.setDebug(true);
+        if (userAgent.ua != null) {
+            // Real engine-level User-Agent (HTTP request header).  Set before
+            // the first navigation so the initial request carries it.  No-op
+            // against a swingwebview that predates setUserAgent.
+            setEngineUserAgent(webView, userAgent.ua);
+        }
         webView.addOnBeforeLoad(NAV_SHIM_JS);
         webView.addJavascriptCallback("__swb_nav", new WebView.JavascriptCallback() {
             @Override public void run(String arg) {
@@ -130,21 +308,62 @@ public final class BrowserTab extends JPanel {
                 listener.onConsoleMessage(BrowserTab.this, msg);
             }
         });
-        // Route browser-initiated popups (window.open, target="_blank") into
-        // a new tab rather than a native pop-up window.  Returning false
-        // blocks the native engine's separate window; we open the requested
-        // URL in a fresh tab instead (mirroring how tabbed browsers handle
-        // popups).  popupRequested runs on the native UI thread off the EDT,
-        // so we must not touch Swing here -- capture the URL and marshal the
-        // tab creation to the EDT.
-        webView.setPopupHandler(new WebViewPopupHandler() {
-            @Override public boolean popupRequested(WebViewPopupEvent e) {
-                final String target = e.targetUrl();
-                SwingUtilities.invokeLater(
-                    () -> listener.onPopupRequested(BrowserTab.this, target));
-                return false;
-            }
-        });
+        switch (popupMode) {
+            case NONE:
+                // Keep popups in THIS window.  The document-start shim polyfills
+                // window.open (-> location.assign) and rewrites form / anchor
+                // targets to _self, so popups never reach the native popup
+                // channel; a POST form submits in-page (native, body preserved).
+                // Block native popups too, as belt-and-suspenders for anything
+                // the shim doesn't catch (e.g. a JS-driven form.submit() with a
+                // target).
+                webView.addOnBeforeLoad(POPUP_SUPPRESS_JS);
+                webView.setPopupHandler(null);
+                break;
+            case NATIVE:
+                // Host each popup in an engine-owned native top-level window
+                // (the framework default): the POST verb + body and
+                // window.opener survive, but the popup is a separate OS window.
+                webView.setPopupHandler(WebViewPopupHandler.DEFAULT);
+                break;
+            case TAB:
+            default:
+                // Open popups as TABS via the adopt strategy (swingwebview
+                // Canvas 18, dependency v1.2.2).  The two alternatives each lose
+                // something: NATIVE_WINDOW preserves the POST but spawns a
+                // separate OS window (not a tab); blocking and re-opening
+                // e.targetUrl() with setUrl() lands in a tab but issues a GET, so
+                // a <form method="post" target="..."> popup drops its body and
+                // its opener linkage.  ADOPT gives us both -- the engine retains
+                // its own opener-linked child (the view WebKit already drove the
+                // original POST verb + body into) and hands it to us to host in a
+                // WebViewComponent, so window.opener / postMessage and the POST
+                // all survive, now inside a tab.  See the swingwebview README
+                // "Adopting popups into a component (a tab)".
+                webView.setPopupHandler(new WebViewPopupHandler() {
+                    // Phase 1: decide on the native UI thread (synchronous, off
+                    // the EDT -- must be fast and must not touch Swing).
+                    @Override public PopupDisposition popupDisposition(WebViewPopupEvent e) {
+                        return PopupDisposition.ADOPT;
+                    }
+                    // Phase 2: on the EDT, take over the retained opener-linked
+                    // child and host it in a new tab.  Realizing that tab (adding
+                    // it to the tabbed pane) is what adopts the child.
+                    @Override public void popupAdoptable(WebViewPopupEvent e, long popupId) {
+                        WebViewComponent child;
+                        try {
+                            child = WebViewComponent.adoptPopup(popupId);
+                        } catch (RuntimeException ex) {
+                            // Unknown / already-adopted id, or a backend where
+                            // native adoption isn't wired: drop it rather than
+                            // throw on the EDT.
+                            return;
+                        }
+                        listener.onPopupAdopted(BrowserTab.this, child, e.targetUrl());
+                    }
+                });
+                break;
+        }
         add(webView, BorderLayout.CENTER);
     }
 
@@ -154,6 +373,20 @@ public final class BrowserTab extends JPanel {
     public boolean canGoBack()        { return !backStack.isEmpty(); }
     public boolean canGoForward()     { return !forwardStack.isEmpty(); }
     public List<ConsoleMessage> consoleBuffer() { return consoleBuffer; }
+
+    /** Seed the URL bar / tab title for an adopted popup tab.  The engine
+     *  child is already navigating (WebKit drove the original request into
+     *  it), so we must NOT {@link #load} -- that would issue a GET and drop
+     *  the popup's in-flight POST.  The NAV_SHIM keeps these in sync from the
+     *  popup's next navigation onward; this just gives the tab an initial
+     *  label.  Called on the EDT after the tab is added. */
+    void seedInitialUrl(String url) {
+        if (url == null || url.isEmpty()) return;
+        currentUrl = url;
+        listener.onUrlChanged(this, url);
+        listener.onTitleChanged(this, url);
+        listener.onNavStateChanged(this);
+    }
 
     /** Toolbar entry point.  Treats blank input as "do nothing"; turns
      *  bare words like "openjdk.org" into a real URL. */
