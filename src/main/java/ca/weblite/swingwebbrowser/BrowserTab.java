@@ -2,6 +2,7 @@ package ca.weblite.swingwebbrowser;
 
 import ca.weblite.webview.ConsoleListener;
 import ca.weblite.webview.ConsoleMessage;
+import ca.weblite.webview.PopupDisposition;
 import ca.weblite.webview.WebView;
 import ca.weblite.webview.WebViewPopupEvent;
 import ca.weblite.webview.WebViewPopupHandler;
@@ -35,12 +36,14 @@ public final class BrowserTab extends JPanel {
         void onNavStateChanged(BrowserTab tab);
         void onConsoleMessage(BrowserTab tab, ConsoleMessage msg);
 
-        /** A page in {@code source} asked to open a popup
-         *  ({@code window.open} or a {@code target="_blank"} link).  The
-         *  browser opens {@code url} in a new tab instead of letting the
-         *  native engine spawn a separate window.  Always invoked on the
-         *  Swing EDT. */
-        void onPopupRequested(BrowserTab source, String url);
+        /** A page in {@code source} opened a popup ({@code window.open}, or a
+         *  {@code target="_blank"} / {@code target="…"} link or form) that the
+         *  engine retained as an opener-linked child — POST verb + body and
+         *  {@code window.opener} intact.  {@code adoptedView} is the {@link
+         *  WebViewComponent} that adopted that child; host it in a new tab.
+         *  {@code targetUrl} is the popup's target, used only to seed the URL
+         *  bar / tab title.  Always invoked on the Swing EDT. */
+        void onPopupAdopted(BrowserTab source, WebViewComponent adoptedView, String targetUrl);
     }
 
     /** JS shim injected into every navigated document.  It calls back
@@ -243,10 +246,25 @@ public final class BrowserTab extends JPanel {
 
     private final List<ConsoleMessage> consoleBuffer = new ArrayList<>();
 
+    /** Create a normal tab backed by a fresh engine view. */
     public BrowserTab(Listener listener) {
+        this(listener, WebViewComponent.create());
+    }
+
+    /** Create a tab that hosts an ADOPTED popup child — the engine's own
+     *  opener-linked view, into which WebKit already drove the original
+     *  request (POST verb + body), with {@code window.opener} intact.  Used
+     *  by {@link Listener#onPopupAdopted}.  The caller seeds the URL via
+     *  {@link #seedInitialUrl} rather than {@link #load}: a {@code load()}
+     *  would issue a GET and discard the popup's in-flight POST. */
+    static BrowserTab adopting(Listener listener, WebViewComponent adoptedView) {
+        return new BrowserTab(listener, adoptedView);
+    }
+
+    private BrowserTab(Listener listener, WebViewComponent webView) {
         super(new BorderLayout());
         this.listener = listener;
-        this.webView = WebViewComponent.create();
+        this.webView = webView;
         webView.setDebug(true);
         if (spoofSafariUa) {
             // EXPERIMENT: client-side UA spoof.  Injected first so it wins
@@ -291,26 +309,38 @@ public final class BrowserTab extends JPanel {
             webView.addOnBeforeLoad(POPUP_SUPPRESS_JS);
             webView.setPopupHandler(null);
         } else {
-            // INTERIM popup handling (pending swingwebview STORY-005-004, popup
-            // adoption).  The previous tab path blocked the native popup window
-            // and re-opened e.targetUrl() in a fresh tab via setUrl(url) -- a
-            // GET, so <form method="post" target="..."> popups lost their POST
-            // body and opener linkage (window.opener / postMessage broke).
-            //
-            // Returning true instead lets the native engine own the popup:
-            // WebKit drives the ORIGINAL request (POST verb + body) into its
-            // opener-linked child, so form-POST and OAuth "sign-in with popup"
-            // flows work correctly.  The trade-off is that popups open in a
-            // SEPARATE NATIVE WINDOW rather than a tab.
-            //
-            // Once popup adoption lands in the swingwebview dependency, replace
-            // this with popupDisposition() -> ADOPT + popupAdoptable() ->
-            // WebViewComponent.adoptPopup(popupId) to host that same
-            // opener-linked child (POST intact) inside a real tab.  See the
-            // swingwebview README "Adopting popups into a component".
+            // Open popups as TABS via the adopt strategy (swingwebview
+            // Canvas 18, dependency v1.2.2).  The two alternatives each lose
+            // something: NATIVE_WINDOW preserves the POST but spawns a separate
+            // OS window (not a tab); blocking and re-opening e.targetUrl() with
+            // setUrl() lands in a tab but issues a GET, so a
+            // <form method="post" target="..."> popup drops its body and its
+            // opener linkage.  ADOPT gives us both -- the engine retains its own
+            // opener-linked child (the view WebKit already drove the original
+            // POST verb + body into) and hands it to us to host in a
+            // WebViewComponent, so window.opener / postMessage and the POST all
+            // survive, now inside a tab.  See the swingwebview README
+            // "Adopting popups into a component (a tab)".
             webView.setPopupHandler(new WebViewPopupHandler() {
-                @Override public boolean popupRequested(WebViewPopupEvent e) {
-                    return true; // native opener-linked window; preserves POST
+                // Phase 1: decide on the native UI thread (synchronous, off the
+                // EDT -- must be fast and must not touch Swing).
+                @Override public PopupDisposition popupDisposition(WebViewPopupEvent e) {
+                    return PopupDisposition.ADOPT;
+                }
+                // Phase 2: on the EDT, take over the retained opener-linked
+                // child and host it in a new tab.  Realizing that tab (adding
+                // it to the tabbed pane) is what adopts the child.
+                @Override public void popupAdoptable(WebViewPopupEvent e, long popupId) {
+                    WebViewComponent child;
+                    try {
+                        child = WebViewComponent.adoptPopup(popupId);
+                    } catch (RuntimeException ex) {
+                        // Unknown / already-adopted id, or a backend where
+                        // native adoption isn't wired: drop it rather than
+                        // throw on the EDT.
+                        return;
+                    }
+                    listener.onPopupAdopted(BrowserTab.this, child, e.targetUrl());
                 }
             });
         }
@@ -323,6 +353,20 @@ public final class BrowserTab extends JPanel {
     public boolean canGoBack()        { return !backStack.isEmpty(); }
     public boolean canGoForward()     { return !forwardStack.isEmpty(); }
     public List<ConsoleMessage> consoleBuffer() { return consoleBuffer; }
+
+    /** Seed the URL bar / tab title for an adopted popup tab.  The engine
+     *  child is already navigating (WebKit drove the original request into
+     *  it), so we must NOT {@link #load} -- that would issue a GET and drop
+     *  the popup's in-flight POST.  The NAV_SHIM keeps these in sync from the
+     *  popup's next navigation onward; this just gives the tab an initial
+     *  label.  Called on the EDT after the tab is added. */
+    void seedInitialUrl(String url) {
+        if (url == null || url.isEmpty()) return;
+        currentUrl = url;
+        listener.onUrlChanged(this, url);
+        listener.onTitleChanged(this, url);
+        listener.onNavStateChanged(this);
+    }
 
     /** Toolbar entry point.  Treats blank input as "do nothing"; turns
      *  bare words like "openjdk.org" into a real URL. */

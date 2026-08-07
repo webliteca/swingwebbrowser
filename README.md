@@ -24,8 +24,13 @@ APIs being demonstrated stand out:
   own `WebViewComponent` and its own console buffer.  The window
   title and tab strip both follow the active page's `<title>`.
 * **Popups** -- browser-initiated popups (`window.open` and
-  `target="_blank"` links) open in a new tab instead of a separate
-  native window, via `WebViewComponent.setPopupHandler`.
+  `target="_blank"` links / forms) open in a new tab instead of a
+  separate native window, using swingwebview's **adopt** strategy
+  (`PopupDisposition.ADOPT` + `WebViewComponent.adoptPopup`).  The tab
+  hosts the engine's own opener-linked child, so a
+  `<form method="post" target="…">` popup keeps its POST body and
+  `window.opener` / `postMessage` keep working -- unlike blocking the
+  popup and re-opening its URL (a GET, which would lose both).
 * **Bookmarks** -- starable on the toolbar, persisted to
   `~/.swingwebbrowser/bookmarks.tsv`.  Saved bookmarks appear as
   menu items under *Bookmarks*; full management dialog via

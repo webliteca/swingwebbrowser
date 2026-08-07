@@ -1,6 +1,7 @@
 package ca.weblite.swingwebbrowser;
 
 import ca.weblite.webview.ConsoleMessage;
+import ca.weblite.webview.swing.WebViewComponent;
 
 import java.awt.BorderLayout;
 import java.awt.Component;
@@ -419,11 +420,20 @@ public final class BrowserFrame extends JFrame implements BrowserTab.Listener {
         devConsole.onConsoleMessage(tab, msg);
     }
 
-    @Override public void onPopupRequested(BrowserTab source, String url) {
-        // Open popups (window.open / target="_blank") as a new tab.  An
-        // empty target (window.open() with no URL) becomes a blank tab.
-        String target = (url == null || url.isEmpty()) ? "about:blank" : url;
-        newTab(target);
+    @Override public void onPopupAdopted(BrowserTab source, WebViewComponent adoptedView,
+                                         String targetUrl) {
+        // Host the engine's opener-linked popup child (POST verb + body and
+        // window.opener preserved) as a new tab, next to the opener.  Adding
+        // the tab and selecting it realizes the component, which adopts the
+        // retained child.  We seed the URL/title from the popup target rather
+        // than load() -- a GET would discard the in-flight POST.
+        BrowserTab tab = BrowserTab.adopting(this, adoptedView);
+        int at = tabs.indexOfComponent(source);
+        int insert = at >= 0 ? at + 1 : tabs.getTabCount();
+        tabs.insertTab("New Tab", null, tab, null, insert);
+        tabs.setTabComponentAt(insert, buildTabHeader(tab));
+        tabs.setSelectedComponent(tab);
+        tab.seedInitialUrl(targetUrl);
     }
 
     // ------------------------------------------------------------------
