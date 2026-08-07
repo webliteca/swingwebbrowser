@@ -89,25 +89,44 @@ public final class BrowserTab extends JPanel {
       + "  }).observe(document.documentElement,{childList:true,subtree:true}); }catch(e){}"
       + "})();";
 
-    /** EXPERIMENT: "redirect popups to the current window" mode.  When on,
-     *  each new tab injects {@link #POPUP_SUPPRESS_JS} at document-start and
-     *  blocks native popups, so {@code window.open} and {@code target="_blank"}
-     *  / {@code target="…"} navigations happen IN the current tab.  A
-     *  {@code <form method="post" target="…">} rewritten to {@code _self}
-     *  submits in-page, so the browser performs the POST natively and the body
-     *  is preserved -- no popup, no new tab, no adoption.  Applies to tabs
-     *  created while enabled (a document-start script can't be removed after a
-     *  tab is built).  Default from the {@code swingwebbrowser.suppressPopups}
-     *  system property. */
-    private static volatile boolean suppressPopups =
-        Boolean.getBoolean("swingwebbrowser.suppressPopups");
+    /** How a browser-initiated popup ({@code window.open}, or a
+     *  {@code target="_blank"} / {@code target="…"} link or form) is handled.
+     *  Chosen from the View ▸ Popup Behavior menu; applies to tabs created
+     *  from now on (the popup handler / document-start shim is wired when a tab
+     *  is built and can't be swapped afterwards). */
+    public enum PopupMode {
+        /** Host each popup in an engine-owned native top-level window — the
+         *  engine's default.  The POST verb + body and {@code window.opener}
+         *  survive, but the popup is a separate OS window, not a tab. */
+        NATIVE("Native"),
+        /** Adopt each popup's opener-linked child into a new tab via the adopt
+         *  strategy (swingwebview Canvas 18): the engine retains the child it
+         *  already drove the request into, so the POST body and
+         *  {@code window.opener} survive, now inside a tab. */
+        TAB("Tab"),
+        /** Suppress popups: block the native popup channel and inject
+         *  {@link #POPUP_SUPPRESS_JS} so {@code window.open} and
+         *  {@code target="…"} navigations happen in the current window (a POST
+         *  form rewritten to {@code _self} submits in-page, body preserved). */
+        NONE("None");
 
-    /** @return whether "redirect popups to current window" mode is on. */
-    public static boolean isSuppressPopups() { return suppressPopups; }
+        /** Menu label. */
+        public final String label;
+        PopupMode(String label) { this.label = label; }
+    }
 
-    /** Toggle "redirect popups to current window" mode for tabs created from
-     *  now on.  Existing tabs keep the behaviour they were built with. */
-    public static void setSuppressPopups(boolean on) { suppressPopups = on; }
+    /** The popup strategy applied to tabs created from now on.  Defaults to
+     *  {@link PopupMode#NATIVE}. */
+    private static volatile PopupMode popupMode = PopupMode.NATIVE;
+
+    /** @return the popup strategy new tabs are built with. */
+    public static PopupMode getPopupMode() { return popupMode; }
+
+    /** Select the popup strategy for tabs created from now on.  Existing tabs
+     *  keep the behaviour they were built with. */
+    public static void setPopupMode(PopupMode mode) {
+        if (mode != null) popupMode = mode;
+    }
 
     /** Document-start shim for {@link #suppressPopups} mode.  Polyfills
      *  {@code window.open} to navigate the current window, and rewrites
@@ -144,69 +163,64 @@ public final class BrowserTab extends JPanel {
       + "AppleWebKit/605.1.15 (KHTML, like Gecko) "
       + "Version/18.3 Safari/605.1.15";
 
-    /** EXPERIMENT: client-side user-agent spoof.  When on, each new tab
-     *  injects {@link #UA_SPOOF_JS} at document-start, overriding the
-     *  JS-visible {@code navigator.userAgent} (and friends) with
-     *  {@link #SAFARI_UA}.  This ONLY affects client-side (JavaScript) UA
-     *  sniffing — it does NOT change the {@code User-Agent} HTTP request
-     *  header the server sees.  For server-side sniffing use the real
-     *  engine-level {@code WebViewComponent.setUserAgent(...)} once it ships
-     *  in the swingwebview dependency.  Default from the
-     *  {@code swingwebbrowser.spoofUa} system property. */
-    private static volatile boolean spoofSafariUa =
-        Boolean.getBoolean("swingwebbrowser.spoofUa");
+    /** A current desktop Chrome (Windows) user-agent string. */
+    public static final String CHROME_UA =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+      + "AppleWebKit/537.36 (KHTML, like Gecko) "
+      + "Chrome/133.0.0.0 Safari/537.36";
 
-    /** @return whether client-side Safari UA spoofing is on. */
-    public static boolean isSpoofSafariUa() { return spoofSafariUa; }
+    /** A current desktop Edge (Windows) user-agent string — Chrome's UA with
+     *  the trailing {@code Edg/…} token. */
+    public static final String EDGE_UA =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+      + "AppleWebKit/537.36 (KHTML, like Gecko) "
+      + "Chrome/133.0.0.0 Safari/537.36 Edg/133.0.0.0";
 
-    /** Toggle client-side Safari UA spoofing for tabs created from now on. */
-    public static void setSpoofSafariUa(boolean on) { spoofSafariUa = on; }
+    /** A current desktop Firefox (Windows) user-agent string. */
+    public static final String FIREFOX_UA =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:135.0) "
+      + "Gecko/20100101 Firefox/135.0";
 
-    /** Document-start shim for {@link #spoofSafariUa}.  Shadows the
-     *  navigator UA-related getters with Safari values.  Client-side only —
-     *  the HTTP User-Agent header is unchanged. */
-    static final String UA_SPOOF_JS =
-        "(function(){try{"
-      + "  var ua=" + jsString(SAFARI_UA) + ";"
-      + "  var av=ua.replace(/^Mozilla\\//,'');"
-      + "  Object.defineProperty(navigator,'userAgent',{get:function(){return ua;},configurable:true});"
-      + "  Object.defineProperty(navigator,'appVersion',{get:function(){return av;},configurable:true});"
-      + "  Object.defineProperty(navigator,'vendor',{get:function(){return 'Apple Computer, Inc.';},configurable:true});"
-      + "  Object.defineProperty(navigator,'platform',{get:function(){return 'MacIntel';},configurable:true});"
-      + "}catch(e){}})();";
+    /** The User-Agent sent for requests, chosen from the View ▸ User Agent
+     *  menu.  Applies to tabs created from now on and — via
+     *  {@link #applyUserAgent} — the current tab when the selection changes. */
+    public enum UserAgentOption {
+        /** The engine's built-in User-Agent (no override). */
+        DEFAULT("Default", null),
+        /** Modern desktop Safari. */
+        SAFARI("Safari", SAFARI_UA),
+        /** Modern desktop Chrome. */
+        CHROME("Chrome", CHROME_UA),
+        /** Modern desktop Edge. */
+        EDGE("Edge", EDGE_UA),
+        /** Modern desktop Firefox. */
+        FIREFOX("Firefox", FIREFOX_UA);
 
-    /** Encode a Java string as a JS string literal (double-quoted, escaped). */
-    private static String jsString(String s) {
-        StringBuilder b = new StringBuilder("\"");
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            if (c == '"' || c == '\\') b.append('\\').append(c);
-            else if (c == '\n') b.append("\\n");
-            else if (c == '\r') b.append("\\r");
-            else b.append(c);
-        }
-        return b.append('"').toString();
+        /** Menu label. */
+        public final String label;
+        /** UA string to send, or {@code null} for the engine default. */
+        public final String ua;
+        UserAgentOption(String label, String ua) { this.label = label; this.ua = ua; }
     }
 
-    /** EXPERIMENT: real engine-level Safari User-Agent (changes the HTTP
-     *  User-Agent header, not just navigator.userAgent).  Calls
-     *  {@code WebViewComponent.setUserAgent(String)} reflectively, so this
-     *  compiles against the published swingwebview and activates only once
-     *  the dependency is bumped to a build that has the method (see
-     *  swingwebview PR #44 / Canvas 21).  Default from the
-     *  {@code swingwebbrowser.realUa} system property. */
-    private static volatile boolean realSafariUa =
-        Boolean.getBoolean("swingwebbrowser.realUa");
+    /** The User-Agent applied to tabs created from now on.  Defaults to
+     *  {@link UserAgentOption#DEFAULT} (the engine's built-in UA). */
+    private static volatile UserAgentOption userAgent = UserAgentOption.DEFAULT;
 
-    /** @return whether the real (HTTP-header) Safari UA override is on. */
-    public static boolean isRealSafariUa() { return realSafariUa; }
+    /** @return the User-Agent new tabs are built with. */
+    public static UserAgentOption getUserAgentOption() { return userAgent; }
 
-    /** Toggle the real Safari UA override for tabs created from now on. */
-    public static void setRealSafariUa(boolean on) { realSafariUa = on; }
+    /** Select the User-Agent for tabs created from now on.  Existing tabs keep
+     *  their UA until reloaded (see {@link #applyUserAgent}). */
+    public static void setUserAgentOption(UserAgentOption option) {
+        if (option != null) userAgent = option;
+    }
 
-    /** Reflectively invoke {@code WebViewComponent.setUserAgent(String)}.
-     *  @return {@code true} if the method exists and was invoked;
-     *          {@code false} when the swingwebview dependency predates it. */
+    /** Set the engine-level {@code User-Agent} (the real HTTP request header,
+     *  not just {@code navigator.userAgent}).  {@code ua == null} clears the
+     *  override back to the engine default.  Invoked reflectively so this still
+     *  compiles against a swingwebview that predates {@code setUserAgent}.
+     *  @return {@code true} if the method exists and was invoked. */
     static boolean setEngineUserAgent(WebViewComponent wv, String ua) {
         try {
             java.lang.reflect.Method m =
@@ -214,17 +228,17 @@ public final class BrowserTab extends JPanel {
             m.invoke(wv, ua);
             return true;
         } catch (NoSuchMethodException e) {
-            return false; // dependency predates Canvas 21 setUserAgent
+            return false; // dependency predates setUserAgent
         } catch (Exception e) {
             return false;
         }
     }
 
-    /** Apply (or clear) the real Safari UA on this tab's engine and reload so
-     *  the change takes effect.
+    /** Apply {@code ua} (or clear it with {@code null}) on this tab's engine and
+     *  reload so the change takes effect.
      *  @return {@code true} if the engine supports setUserAgent. */
-    public boolean applyRealUserAgent(boolean on) {
-        boolean ok = setEngineUserAgent(webView, on ? SAFARI_UA : null);
+    public boolean applyUserAgent(String ua) {
+        boolean ok = setEngineUserAgent(webView, ua);
         if (ok) reload();
         return ok;
     }
@@ -266,16 +280,11 @@ public final class BrowserTab extends JPanel {
         this.listener = listener;
         this.webView = webView;
         webView.setDebug(true);
-        if (spoofSafariUa) {
-            // EXPERIMENT: client-side UA spoof.  Injected first so it wins
-            // before any page script reads navigator.userAgent.
-            webView.addOnBeforeLoad(UA_SPOOF_JS);
-        }
-        if (realSafariUa) {
-            // EXPERIMENT: real engine-level UA (HTTP header).  Set before the
-            // first navigation so the initial request carries it.  No-op
+        if (userAgent.ua != null) {
+            // Real engine-level User-Agent (HTTP request header).  Set before
+            // the first navigation so the initial request carries it.  No-op
             // against a swingwebview that predates setUserAgent.
-            setEngineUserAgent(webView, SAFARI_UA);
+            setEngineUserAgent(webView, userAgent.ua);
         }
         webView.addOnBeforeLoad(NAV_SHIM_JS);
         webView.addJavascriptCallback("__swb_nav", new WebView.JavascriptCallback() {
@@ -299,50 +308,61 @@ public final class BrowserTab extends JPanel {
                 listener.onConsoleMessage(BrowserTab.this, msg);
             }
         });
-        if (suppressPopups) {
-            // EXPERIMENT: keep popups in THIS window.  The document-start shim
-            // polyfills window.open (-> location.assign) and rewrites form /
-            // anchor targets to _self, so popups never reach the native popup
-            // channel; a POST form submits in-page (native, body preserved).
-            // Block native popups too, as belt-and-suspenders for anything the
-            // shim doesn't catch (e.g. a JS-driven form.submit() with target).
-            webView.addOnBeforeLoad(POPUP_SUPPRESS_JS);
-            webView.setPopupHandler(null);
-        } else {
-            // Open popups as TABS via the adopt strategy (swingwebview
-            // Canvas 18, dependency v1.2.2).  The two alternatives each lose
-            // something: NATIVE_WINDOW preserves the POST but spawns a separate
-            // OS window (not a tab); blocking and re-opening e.targetUrl() with
-            // setUrl() lands in a tab but issues a GET, so a
-            // <form method="post" target="..."> popup drops its body and its
-            // opener linkage.  ADOPT gives us both -- the engine retains its own
-            // opener-linked child (the view WebKit already drove the original
-            // POST verb + body into) and hands it to us to host in a
-            // WebViewComponent, so window.opener / postMessage and the POST all
-            // survive, now inside a tab.  See the swingwebview README
-            // "Adopting popups into a component (a tab)".
-            webView.setPopupHandler(new WebViewPopupHandler() {
-                // Phase 1: decide on the native UI thread (synchronous, off the
-                // EDT -- must be fast and must not touch Swing).
-                @Override public PopupDisposition popupDisposition(WebViewPopupEvent e) {
-                    return PopupDisposition.ADOPT;
-                }
-                // Phase 2: on the EDT, take over the retained opener-linked
-                // child and host it in a new tab.  Realizing that tab (adding
-                // it to the tabbed pane) is what adopts the child.
-                @Override public void popupAdoptable(WebViewPopupEvent e, long popupId) {
-                    WebViewComponent child;
-                    try {
-                        child = WebViewComponent.adoptPopup(popupId);
-                    } catch (RuntimeException ex) {
-                        // Unknown / already-adopted id, or a backend where
-                        // native adoption isn't wired: drop it rather than
-                        // throw on the EDT.
-                        return;
+        switch (popupMode) {
+            case NONE:
+                // Keep popups in THIS window.  The document-start shim polyfills
+                // window.open (-> location.assign) and rewrites form / anchor
+                // targets to _self, so popups never reach the native popup
+                // channel; a POST form submits in-page (native, body preserved).
+                // Block native popups too, as belt-and-suspenders for anything
+                // the shim doesn't catch (e.g. a JS-driven form.submit() with a
+                // target).
+                webView.addOnBeforeLoad(POPUP_SUPPRESS_JS);
+                webView.setPopupHandler(null);
+                break;
+            case NATIVE:
+                // Host each popup in an engine-owned native top-level window
+                // (the framework default): the POST verb + body and
+                // window.opener survive, but the popup is a separate OS window.
+                webView.setPopupHandler(WebViewPopupHandler.DEFAULT);
+                break;
+            case TAB:
+            default:
+                // Open popups as TABS via the adopt strategy (swingwebview
+                // Canvas 18, dependency v1.2.2).  The two alternatives each lose
+                // something: NATIVE_WINDOW preserves the POST but spawns a
+                // separate OS window (not a tab); blocking and re-opening
+                // e.targetUrl() with setUrl() lands in a tab but issues a GET, so
+                // a <form method="post" target="..."> popup drops its body and
+                // its opener linkage.  ADOPT gives us both -- the engine retains
+                // its own opener-linked child (the view WebKit already drove the
+                // original POST verb + body into) and hands it to us to host in a
+                // WebViewComponent, so window.opener / postMessage and the POST
+                // all survive, now inside a tab.  See the swingwebview README
+                // "Adopting popups into a component (a tab)".
+                webView.setPopupHandler(new WebViewPopupHandler() {
+                    // Phase 1: decide on the native UI thread (synchronous, off
+                    // the EDT -- must be fast and must not touch Swing).
+                    @Override public PopupDisposition popupDisposition(WebViewPopupEvent e) {
+                        return PopupDisposition.ADOPT;
                     }
-                    listener.onPopupAdopted(BrowserTab.this, child, e.targetUrl());
-                }
-            });
+                    // Phase 2: on the EDT, take over the retained opener-linked
+                    // child and host it in a new tab.  Realizing that tab (adding
+                    // it to the tabbed pane) is what adopts the child.
+                    @Override public void popupAdoptable(WebViewPopupEvent e, long popupId) {
+                        WebViewComponent child;
+                        try {
+                            child = WebViewComponent.adoptPopup(popupId);
+                        } catch (RuntimeException ex) {
+                            // Unknown / already-adopted id, or a backend where
+                            // native adoption isn't wired: drop it rather than
+                            // throw on the EDT.
+                            return;
+                        }
+                        listener.onPopupAdopted(BrowserTab.this, child, e.targetUrl());
+                    }
+                });
+                break;
         }
         add(webView, BorderLayout.CENTER);
     }

@@ -23,14 +23,26 @@ APIs being demonstrated stand out:
 * **Tabs** -- new tab, middle-click or ✕ to close.  Each tab owns its
   own `WebViewComponent` and its own console buffer.  The window
   title and tab strip both follow the active page's `<title>`.
-* **Popups** -- browser-initiated popups (`window.open` and
-  `target="_blank"` links / forms) open in a new tab instead of a
-  separate native window, using swingwebview's **adopt** strategy
-  (`PopupDisposition.ADOPT` + `WebViewComponent.adoptPopup`).  The tab
-  hosts the engine's own opener-linked child, so a
-  `<form method="post" target="…">` popup keeps its POST body and
-  `window.opener` / `postMessage` keep working -- unlike blocking the
-  popup and re-opening its URL (a GET, which would lose both).
+* **Popups** -- *View → Popup Behavior* selects how browser-initiated
+  popups (`window.open` and `target="_blank"` links / forms) are
+  handled, for tabs opened from then on:
+  * **Native** (default) -- host each popup in a separate native
+    top-level window (`PopupDisposition.NATIVE_WINDOW`).
+  * **Tab** -- open the popup in a new tab using swingwebview's
+    **adopt** strategy (`PopupDisposition.ADOPT` +
+    `WebViewComponent.adoptPopup`).  The tab hosts the engine's own
+    opener-linked child, so a `<form method="post" target="…">` popup
+    keeps its POST body and `window.opener` / `postMessage` keep
+    working -- unlike blocking the popup and re-opening its URL (a GET,
+    which would lose both).
+  * **None** -- suppress popups: a document-start shim rewrites
+    `window.open` / `target="…"` to the current window, so the popup
+    navigates in place.
+* **User Agent** -- *View → User Agent* selects the `User-Agent` HTTP
+  header sent for requests: **Default** (the engine's built-in UA), or a
+  modern desktop **Safari**, **Chrome**, **Edge**, or **Firefox** string
+  (via `WebViewComponent.setUserAgent`).  Applies to new tabs and reloads
+  the current tab so the change takes effect immediately.
 * **Bookmarks** -- starable on the toolbar, persisted to
   `~/.swingwebbrowser/bookmarks.tsv`.  Saved bookmarks appear as
   menu items under *Bookmarks*; full management dialog via

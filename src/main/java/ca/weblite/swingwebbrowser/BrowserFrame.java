@@ -20,7 +20,6 @@ import javax.swing.JComponent;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JList;
-import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
@@ -190,58 +189,8 @@ public final class BrowserFrame extends JFrame implements BrowserTab.Listener {
         });
         view.add(console);
         view.addSeparator();
-        // EXPERIMENT: keep popups in the current window (JS injection rewrites
-        // form/anchor targets to _self and polyfills window.open ->
-        // location.assign).  Applies to tabs opened from now on; enabling also
-        // applies the shim to the current page immediately.
-        JCheckBoxMenuItem suppressPopups = new JCheckBoxMenuItem(
-            "Redirect popups to current window (experiment)");
-        suppressPopups.setSelected(BrowserTab.isSuppressPopups());
-        suppressPopups.addActionListener(e -> {
-            boolean on = suppressPopups.isSelected();
-            BrowserTab.setSuppressPopups(on);
-            if (on) {
-                BrowserTab t = activeTab();
-                if (t != null) t.evalJs(BrowserTab.POPUP_SUPPRESS_JS);
-            }
-        });
-        view.add(suppressPopups);
-        // EXPERIMENT: client-side Safari UA spoof (overrides navigator.userAgent
-        // only; not the HTTP header).  Applies to tabs opened from now on;
-        // enabling reloads the current tab so the shim applies from load.
-        JCheckBoxMenuItem spoofUa = new JCheckBoxMenuItem(
-            "Spoof Safari user agent — client-side (experiment)");
-        spoofUa.setSelected(BrowserTab.isSpoofSafariUa());
-        spoofUa.addActionListener(e -> {
-            BrowserTab.setSpoofSafariUa(spoofUa.isSelected());
-            BrowserTab t = activeTab();
-            if (t != null) t.reload();
-        });
-        view.add(spoofUa);
-        // EXPERIMENT: real engine-level Safari UA (changes the HTTP header).
-        // Calls WebViewComponent.setUserAgent reflectively; only takes effect
-        // once the swingwebview dependency is bumped to a build that has it
-        // (PR #44 / Canvas 21).  Applies to new tabs; toggling applies to the
-        // current tab and reloads.
-        JCheckBoxMenuItem realUa = new JCheckBoxMenuItem(
-            "Real Safari User-Agent — HTTP header (needs updated swingwebview)");
-        realUa.setSelected(BrowserTab.isRealSafariUa());
-        realUa.addActionListener(e -> {
-            boolean on = realUa.isSelected();
-            BrowserTab.setRealSafariUa(on);
-            BrowserTab t = activeTab();
-            boolean ok = (t == null) || t.applyRealUserAgent(on);
-            if (on && !ok) {
-                JOptionPane.showMessageDialog(this,
-                    "This build of swingwebview does not expose setUserAgent yet.\n"
-                  + "Bump the swingwebview dependency to a build with Canvas 21\n"
-                  + "(PR #44) to change the real HTTP User-Agent header.\n\n"
-                  + "The client-side spoof above works without that update.",
-                    "User-Agent override unavailable",
-                    JOptionPane.INFORMATION_MESSAGE);
-            }
-        });
-        view.add(realUa);
+        view.add(buildUserAgentMenu());
+        view.add(buildPopupBehaviorMenu());
         bar.add(view);
 
         JMenu history = new JMenu("History");
@@ -262,6 +211,50 @@ public final class BrowserFrame extends JFrame implements BrowserTab.Listener {
         bar.add(help);
 
         return bar;
+    }
+
+    /** View ▸ User Agent: a radio group choosing the {@code User-Agent} sent
+     *  for requests (the real HTTP header).  "Default" uses the engine's
+     *  built-in UA; the others send a modern desktop UA for that browser.
+     *  Selecting an option updates new tabs and reloads the current tab so the
+     *  new UA takes effect immediately. */
+    private JMenu buildUserAgentMenu() {
+        JMenu menu = new JMenu("User Agent");
+        menu.setToolTipText("User-Agent header sent for requests "
+            + "(applies to new tabs; reloads the current tab)");
+        javax.swing.ButtonGroup group = new javax.swing.ButtonGroup();
+        for (BrowserTab.UserAgentOption opt : BrowserTab.UserAgentOption.values()) {
+            javax.swing.JRadioButtonMenuItem item =
+                new javax.swing.JRadioButtonMenuItem(opt.label);
+            item.setSelected(BrowserTab.getUserAgentOption() == opt);
+            item.addActionListener(e -> {
+                BrowserTab.setUserAgentOption(opt);
+                BrowserTab t = activeTab();
+                if (t != null) t.applyUserAgent(opt.ua);
+            });
+            group.add(item);
+            menu.add(item);
+        }
+        return menu;
+    }
+
+    /** View ▸ Popup Behavior: a radio group choosing how popups are handled for
+     *  tabs opened from now on.  "Native" hosts each popup in a native window
+     *  (the default), "Tab" adopts it into a new tab, and "None" suppresses
+     *  popups so they open in the current window. */
+    private JMenu buildPopupBehaviorMenu() {
+        JMenu menu = new JMenu("Popup Behavior");
+        menu.setToolTipText("How popups open (applies to tabs opened from now on)");
+        javax.swing.ButtonGroup group = new javax.swing.ButtonGroup();
+        for (BrowserTab.PopupMode mode : BrowserTab.PopupMode.values()) {
+            javax.swing.JRadioButtonMenuItem item =
+                new javax.swing.JRadioButtonMenuItem(mode.label);
+            item.setSelected(BrowserTab.getPopupMode() == mode);
+            item.addActionListener(e -> BrowserTab.setPopupMode(mode));
+            group.add(item);
+            menu.add(item);
+        }
+        return menu;
     }
 
     private JMenuItem menuItem(String label, int keyCode, Runnable action) {
