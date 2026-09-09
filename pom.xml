@@ -20,10 +20,15 @@
     </properties>
 
     <dependencies>
+        <!-- swingwebview. 1.6.1 fixes the macOS credential store: a credential
+             saved with an empty user name (every two-step login — Google,
+             Microsoft, Okta) was written to the Keychain and then invisible to
+             every read, and the shim now carries the user name across the two
+             steps. Drop-in over 1.6.0; no API change. -->
         <dependency>
             <groupId>ca.weblite</groupId>
             <artifactId>webview</artifactId>
-            <version>1.6.0</version>
+            <version>1.6.1</version>
         </dependency>
         <dependency>
             <groupId>com.formdev</groupId>
