@@ -20,15 +20,31 @@
     </properties>
 
     <dependencies>
-        <!-- swingwebview. 1.6.1 fixes the macOS credential store: a credential
-             saved with an empty user name (every two-step login — Google,
-             Microsoft, Okta) was written to the Keychain and then invisible to
-             every read, and the shim now carries the user name across the two
-             steps. Drop-in over 1.6.0; no API change. -->
+        <!-- swingwebview. 1.6.2 fixes the lightweight (GTK offscreen) engine:
+             gtk_off_create_engine connected the "external" script-message
+             channel twice on the same WebKitUserContentManager, and
+             g_signal_connect is additive, so both callbacks ran and every
+             message the page posted arrived in Java twice — doubling every
+             addJavascriptFunction call, every addJavascriptCallback, console
+             capture and evalAsync resolution. Linux only: resolveDefaultMode
+             picks LIGHTWEIGHT there and only there, and the heavyweight engine
+             always connected once. Drop-in over 1.6.1; no API change.
+
+             1.6.1 fixed the macOS credential store: a credential saved with an
+             empty user name (every two-step login — Google, Microsoft, Okta)
+             was written to the Keychain and then invisible to every read, and
+             the shim now carries the user name across the two steps.
+
+             This project declares no ca.weblite:webview-run, so it has ONE copy
+             of ca.weblite.webview.* and one set of natives on its classpath.
+             The lockstep hazard documented in litecode and agentic-app-framework
+             — where a shaded copy inside webview-run competes with this
+             dependency and Class-Path order silently decides which native is
+             loaded — does not apply here, and this pin can move on its own. -->
         <dependency>
             <groupId>ca.weblite</groupId>
             <artifactId>webview</artifactId>
-            <version>1.6.1</version>
+            <version>1.6.2</version>
         </dependency>
         <dependency>
             <groupId>com.formdev</groupId>
