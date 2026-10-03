@@ -20,7 +20,18 @@
     </properties>
 
     <dependencies>
-        <!-- swingwebview. 1.6.2 fixes the lightweight (GTK offscreen) engine:
+        <!-- swingwebview. 1.10.2 stops a crash on Ubuntu 22.04 (libX11 1.7)
+             when focusing a text field under a launcher that opened a GTK
+             window first, reports both WebKitGTK load errors (and publishes
+             them as the ca.weblite.webview.nativeLoadError system property),
+             and fixes embedded-view geometry on scaled displays. Since 1.10.1
+             the Linux natives load on glibc 2.31+ (Ubuntu 20.04/22.04,
+             Debian 11); earlier builds needed glibc 2.38. 1.7 - 1.10 otherwise
+             added API (print to PDF, custom URL schemes, getCookies, navigation
+             decisions, media in the Linux lightweight engine) and fixed a JVM
+             abort at exit on Linux, so this is a drop-in over 1.6.2.
+
+             1.6.2 fixed the lightweight (GTK offscreen) engine:
              gtk_off_create_engine connected the "external" script-message
              channel twice on the same WebKitUserContentManager, and
              g_signal_connect is additive, so both callbacks ran and every
@@ -44,7 +55,7 @@
         <dependency>
             <groupId>ca.weblite</groupId>
             <artifactId>webview</artifactId>
-            <version>1.6.2</version>
+            <version>1.10.2</version>
         </dependency>
         <dependency>
             <groupId>com.formdev</groupId>
