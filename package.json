@@ -21,6 +21,16 @@
         ],
         "jar": "target/swingwebbrowser-1.0-SNAPSHOT.jar",
         "title": "Swing Web Browser",
+        "permissions": [
+            {
+                "name": "camera",
+                "description": "Web pages you visit can ask to use your camera, for example for video calls."
+            },
+            {
+                "name": "microphone",
+                "description": "Web pages you visit can ask to use your microphone, for example for video calls or voice recording."
+            }
+        ],
         "platformBundlesEnabled": false,
         "downloadPage": {"platforms": ["all"]}
     },
