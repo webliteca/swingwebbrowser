@@ -20,7 +20,8 @@
     </properties>
 
     <dependencies>
-        <!-- swingwebview. 1.11.0 puts a page's camera, microphone and
+        <!-- swingwebview. 1.11.1 is 1.11.0 republished (Maven Central
+             rejected 1.11.0's bundle, so only 1.11.1 is there). 1.11.0 puts a page's camera, microphone and
              screen-capture requests (getUserMedia / getDisplayMedia) to an
              optional WebViewComponent.setPermissionHandler; with none, each
              engine decides as before (on macOS, WebKit's own prompt). On macOS
@@ -65,7 +66,7 @@
         <dependency>
             <groupId>ca.weblite</groupId>
             <artifactId>webview</artifactId>
-            <version>1.11.0</version>
+            <version>1.11.1</version>
         </dependency>
         <dependency>
             <groupId>com.formdev</groupId>
